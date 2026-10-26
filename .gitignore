@@ -1,0 +1,42 @@
+# 비밀값 파일 제외 (.env.example만 커밋)
+.env
+.env.*
+!.env.example
+
+# 비밀값이 들어가는 Spring 설정 파일 제외
+application-local.yml
+application-local.yaml
+application-prod.yml
+application-prod.yaml
+application-secret.yml
+secrets.yml
+
+# Maven 빌드 결과물 제외
+target/
+*.class
+*.jar
+*.war
+hs_err_pid*
+replay_pid*
+
+# 로그 파일 제외
+*.log
+logs/
+
+# 파이썬 캐시 제외 (scripts/tc_status.py)
+__pycache__/
+*.pyc
+
+# IDE 개인 설정 제외
+.idea/
+*.iml
+.vscode/
+*.code-workspace
+.classpath
+.project
+.settings/
+
+# OS 자동 생성 파일 제외
+.DS_Store
+Thumbs.db
+desktop.ini

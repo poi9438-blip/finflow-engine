@@ -1,0 +1,3 @@
+# mvnw is a shell script: keep LF so it runs on Linux (CI, Docker); mvnw.cmd is for Windows
+mvnw text eol=lf
+*.cmd text eol=crlf
