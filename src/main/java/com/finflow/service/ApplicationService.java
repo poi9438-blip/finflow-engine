@@ -27,8 +27,10 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
@@ -50,14 +52,16 @@ public class ApplicationService {
     private final ApplicationStatusHistoryRepository historyRepository;
 
     // 신청 접수: 진행 중인 같은 신청자·상품 신청이 있으면 409, 신청과 접수 이력을 한 트랜잭션으로 저장
+    // (DB 제약에 막히면 DuplicateSaveException)
     @Transactional
-    public ApplicationReceipt receive(CreateApplicationRequest request, AuthPrincipal actor) {
+    public ApplicationReceipt receive(CreateApplicationRequest request, String idempotencyKey, String requestHash,
+            AuthPrincipal actor) {
         ProductCode productCode = ProductCode.valueOf(request.productCode());
         if (applicationRepository.existsByApplicantRefAndProductCodeAndStatusIn(request.applicantRef(), productCode,
                 ACTIVE)) {
             throw new BusinessException(HttpStatus.CONFLICT, ACTIVE_EXISTS);
         }
-        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime now = now();
         Application application = Application.builder()
                 .applicationId(UUID.randomUUID().toString())
                 .type(ApplicationType.LOAN)
@@ -78,19 +82,33 @@ public class ApplicationService {
                 .receivedAt(now)
                 .updatedAt(now)
                 .traceId(TraceIds.current())
+                .idempotencyKey(idempotencyKey)
+                .requestHash(requestHash)
                 .build();
 
         // 동시에 들어온 같은 신청은 DB unique 제약(active_key)이 막음 → 409
         try {
             applicationRepository.saveAndFlush(application);
         } catch (DataIntegrityViolationException e) {
-            throw new BusinessException(HttpStatus.CONFLICT, ACTIVE_EXISTS);
+            throw new DuplicateSaveException();
         }
         recordHistory(application, null, actor, null, now);
         // 로그에는 금액·소득·DTI를 남기지 않음 (업무 명세 10장)
         log.info("Application received applicationId={} product={}", application.getApplicationId(), productCode);
-        return new ApplicationReceipt(application.getApplicationId(), application.getStatus(),
-                application.getReceivedAt());
+        return ApplicationReceipt.of(application);
+    }
+
+    // 멱등성 키로 저장된 신청 (재전송 확인, 새 트랜잭션)
+    @Transactional(readOnly = true)
+    public Optional<Application> findByIdempotencyKey(String idempotencyKey) {
+        return applicationRepository.findByIdempotencyKey(idempotencyKey);
+    }
+
+    // 저장이 DB unique 제약(같은 키 또는 진행 중 중복)에 막힘
+    public static class DuplicateSaveException extends RuntimeException {
+        DuplicateSaveException() {
+            super("Duplicate application save", null, false, false);
+        }
     }
 
     // 신청자 본인 조회 (applicantRef가 다르면 없는 신청처럼 404)
@@ -162,11 +180,16 @@ public class ApplicationService {
                     to);
             throw new BusinessException(HttpStatus.CONFLICT, "Invalid status transition: " + from + " -> " + to);
         }
-        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime now = now();
         application.changeStatus(to, now);
         applicationRepository.saveAndFlush(application);
         recordHistory(application, from, actor, reason, now);
         log.info("Application status changed applicationId={} {} -> {}", application.getApplicationId(), from, to);
+    }
+
+    // 현재 시각 (DB와 같은 마이크로초 정밀도)
+    private static LocalDateTime now() {
+        return LocalDateTime.now().truncatedTo(ChronoUnit.MICROS);
     }
 
     private void recordHistory(Application application, ApplicationStatus from, AuthPrincipal actor, String reason,

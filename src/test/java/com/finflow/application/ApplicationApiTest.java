@@ -94,11 +94,15 @@ class ApplicationApiTest {
         @DisplayName("[TC-APP-101] 신청 접수 → 201 {applicationId(UUID), RECEIVED, receivedAt(…Z)}, DB 순번 id 없음, 접수 이력 1줄(SERVICE, homefin-mate, 받은 traceId)")
         void receive_createsApplicationAndHistory() throws Exception {
                 String ref = applicantRef();
-                MvcResult result = mockMvc.perform(post("/api/applications")
-                                .header("Authorization", bearer(serviceToken()))
-                                .header("X-Trace-Id", "hfm-receive-1")
-                                .contentType(MediaType.APPLICATION_JSON)
-                                .content(api.json(applicationBody(ref))))
+                MvcResult result = mockMvc
+                                
+                                                
+                                                .perform(post("/api/applications")
+                                                                .header("Idempotency-K
+                                                                .header("Authorization",
+                                                                .header("X-Trace-Id", "hfm-receive-1")
+                                                .contentType(MediaType.APPLICATION_JSON)
+                                                .content(api.json(applicationBody(ref))))
                                 .andExpect(status().isCreated())
                                 .andExpect(jsonPath("$.data.applicationId", matchesPattern(UUID_PATTERN)))
                                 .andExpect(jsonPath("$.data.status").value("RECEIVED"))

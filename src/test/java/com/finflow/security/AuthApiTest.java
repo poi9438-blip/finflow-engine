@@ -74,8 +74,10 @@ class AuthApiTest {
     }
 
     private int receiveWith(String token) throws Exception {
-        return mockMvc.perform(post("/api/applications").header("Authorization", bearer(token))
-                .contentType(MediaType.APPLICATION_JSON).content(api.json(applicationBody(applicantRef()))))
+        return mockMvc
+                .perform(post("/api/applications").header("Idempotency-Key", UUID.randomUUID().toString())
+                        .header("Authorization", bearer(token))
+                        .contentType(MediaType.APPLICATION_JSON).content(api.json(applicationBody(applicantRef()))))
                 .andReturn().getResponse().getStatus();
     }
 

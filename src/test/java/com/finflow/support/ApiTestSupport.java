@@ -14,6 +14,7 @@ import java.time.Instant;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -82,12 +83,21 @@ public final class ApiTestSupport {
         return body;
     }
 
-    // 서비스 토큰으로 신청 접수
+    // 서비스 토큰으로 신청 접수 (멱등성 키는 매번 새로)
     public ResultActions receive(Map<String, Object> body) throws Exception {
-        return mockMvc.perform(post("/api/applications")
+        return receive(body, UUID.randomUUID().toString());
+    }
+
+    // 키를 정해서 접수 (재전송 확인)
+    public ResultActions receive(Map<String, Object> body, String idempotencyKey) throws Exception {
+        var request = post("/api/applications")
                 .header("Authorization", bearer(serviceToken()))
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(json(body)));
+                .content(json(body));
+        if (idempotencyKey != null) {
+            request = request.header("Idempotency-Key", idempotencyKey);
+        }
+        return mockMvc.perform(request);
     }
 
     // 접수하고 applicationId 반환
