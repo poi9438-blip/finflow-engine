@@ -55,7 +55,7 @@ public class GlobalExceptionHandler {
     }
 
     // 동시 수정(버전 불일치) → 409
-    @E (ObjectOptimisticLockingFailureException.class)
+    @ExceptionHandler(ObjectOptimisticLockingFailureException.class)
     public ResponseEntity<ApiResponse<Void>> handleOptimisticLock(ObjectOptimisticLockingFailureException ex) {
         return ResponseEntity.status(HttpStatus.CONFLICT)
                 .body(ApiResponse.error("Application was updated by another request", TraceIds.current()));
