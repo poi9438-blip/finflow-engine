@@ -1,0 +1,50 @@
+# FinFlow 설정 (비밀값은 환경변수/.env에서 주입)
+
+spring:
+  application:
+    name: finflow-engine
+
+  # 로컬 실행 시 저장소 루트의 .env를 설정으로 불러옴 (없으면 무시)
+  config:
+    import:
+      - optional:file:.env[.properties]
+
+  datasource:
+    # Docker 안에서는 DB_URL로 덮어씀, DB 시간 기준 UTC. 비밀번호는 기본값 없음
+    url: ${DB_URL:jdbc:mysql://localhost:3311/finflow?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC}
+    username: ${MYSQL_USER:ffuser}
+    password: ${MYSQL_PASSWORD}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    # 커넥션을 얻을 때까지 최대 10초 대기
+    hikari:
+      connection-timeout: 10000
+
+  jpa:
+    # 요청 끝까지 DB 커넥션을 잡지 않도록 OSIV 끔 (HomeFin #71에서 확인한 문제)
+    open-in-view: false
+    hibernate:
+      # 테이블은 Flyway(db/migration)가 만들고 바꿈, Hibernate는 엔티티와 테이블이 맞는지 확인만
+      ddl-auto: validate
+    show-sql: false
+
+server:
+  # FinFlow 포트 8110 (HomeFin 8100, RiskWatch 8120)
+  port: ${SERVER_PORT:8110}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        # 웹으로는 health만 공개 (env, beans 등 내부 정보 노출 방지)
+        include: health
+  endpoint:
+    health:
+      # 상태 세부 정보 숨김
+      show-details: never
+
+logging:
+  level:
+    com.finflow: INFO
+  pattern:
+    # 로그 형식: 시간 [스레드] [traceId] 레벨 클래스 - 메시지
+    console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] [traceId=%X{traceId}] %-5level %logger{36} - %msg%n"

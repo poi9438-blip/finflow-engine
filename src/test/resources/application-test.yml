@@ -1,0 +1,17 @@
+# 테스트 설정: MySQL 대신 H2 메모리 DB 사용
+
+spring:
+  # @DataJpaTest도 아래 H2(MySQL 모드) 설정을 그대로 사용
+  test:
+    database:
+      replace: none
+  datasource:
+    # 테스트 컨텍스트마다 새 DB, MySQL 문법으로 Flyway SQL 실행
+    url: jdbc:h2:mem:fftest-${random.uuid};MODE=MySQL;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=false
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+  jpa:
+    hibernate:
+      # 운영과 같이 Flyway가 테이블을 만듦
+      ddl-auto: none
