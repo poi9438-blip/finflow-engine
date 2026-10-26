@@ -9,6 +9,7 @@
 | [api-errors.md](api-errors.md)   | 공통 응답·오류 형식                        | TC-ERR    |
 | [auth.md](auth.md)               | 운영자 로그인, 서비스·운영자 토큰, 역할    | TC-AUTH   |
 | [application.md](application.md) | 신청 접수, 상태 흐름, 감사 기록            | TC-APP    |
+| [idempotency.md](idempotency.md) | 신청 접수 멱등성 (Idempotency-Key)         | TC-IDEM   |
 
 ## ID 규칙
 
