@@ -95,12 +95,10 @@ class ApplicationApiTest {
         void receive_createsApplicationAndHistory() throws Exception {
                 String ref = applicantRef();
                 MvcResult result = mockMvc
-                                
-                                                
-                                                .perform(post("/api/applications")
-                                                                .header("Idempotency-K
-                                                                .header("Authorization",
-                                                                .header("X-Trace-Id", "hfm-receive-1")
+                                .perform(post("/api/applications")
+                                                .header("Idempotency-Key", UUID.randomUUID().toString())
+                                                .header("Authorization", bearer(serviceToken()))
+                                                .header("X-Trace-Id", "hfm-receive-1")
                                                 .contentType(MediaType.APPLICATION_JSON)
                                                 .content(api.json(applicationBody(ref))))
                                 .andExpect(status().isCreated())
