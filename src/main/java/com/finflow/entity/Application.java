@@ -118,6 +118,14 @@ public class Application {
     @Column(name = "trace_id", updatable = false)
     private String traceId;
 
+    // HomeFin이 보낸 Idempotency-Key (2단계 신청은 null)
+    @Column(name = "idempotency_key", updatable = false)
+    private String idempotencyKey;
+
+    // 요청 값의 SHA-256 (같은 키로 다른 요청이 왔는지 확인)
+    @Column(name = "request_hash", updatable = false)
+    private String requestHash;
+
     // 상태 변경 (전이 규칙 확인은 ApplicationService가 함). 승인·거절이면 결정 시각을 남김
     public void changeStatus(ApplicationStatus to, LocalDateTime now) {
         this.status = to;

@@ -56,7 +56,8 @@ class MySqlSchemaTest {
                 List<String> versions = jdbc.queryForList(
                                 "select version from flyway_schema_history where success = 1 order by installed_rank",
                                 String.class);
-                assertThat(versions).containsExactly("1");
+                // V2(멱등성 키)까지 순서대로 적용
+                assertThat(versions).containsExactly("1", "2");
 
                 long id = insertApplication("00000000-0000-0000-0000-000000000001", "homefin:1", "RECEIVED");
 
@@ -82,5 +83,21 @@ class MySqlSchemaTest {
                 // 끝난 상태로 바꾸면 같은 신청자·상품을 다시 접수할 수 있음
                 jdbc.update("update applications set status = 'CANCELLED' where id = ?", id);
                 insertApplication("00000000-0000-0000-0000-000000000005", "homefin:1", "RECEIVED");
+        }
+
+        @Test
+        @DisplayName("[TC-IDEM-202] 실제 MySQL 8에서 V2: 멱등성 키는 unique, 키가 없는 예전 신청(NULL)은 여러 건 가능")
+        void idempotencyKeyUniqueOnMySql() {
+                long first = insertApplication("00000000-0000-0000-0000-000000000101", "homefin:101", "CANCELLED");
+                long second = insertApplication("00000000-0000-0000-0000-000000000102", "homefin:102", "CANCELLED");
+                // 둘 다 키 없음(NULL) → 허용
+                assertThat(jdbc.queryForObject("select count(*) from applications where idempotency_key is null"
+                                + " and id in (?, ?)", Long.class, first, second)).isEqualTo(2);
+
+                jdbc.update("update applications set idempotency_key = 'key-mysql-1', request_hash = ? where id = ?",
+                                "a".repeat(64), first);
+                assertThatThrownBy(() -> jdbc.update(
+                                "update applications set idempotency_key = 'key-mysql-1' where id = ?", second))
+                                .isInstanceOf(DataIntegrityViolationException.class);
         }
 }

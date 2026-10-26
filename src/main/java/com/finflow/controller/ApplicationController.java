@@ -8,6 +8,7 @@ import com.finflow.dto.application.ApplicationReceipt;
 import com.finflow.dto.application.CreateApplicationRequest;
 import com.finflow.security.AuthPrincipal;
 import com.finflow.service.ApplicationService;
+import com.finflow.service.IdempotentReceiver;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -17,6 +18,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -28,13 +30,19 @@ import org.springframework.web.bind.annotation.RestController;
 public class ApplicationController {
 
     private final ApplicationService applicationService;
+    private final IdempotentReceiver idempotentReceiver;
 
-    // 신청 접수 (201)
+    // 신청 접수 (새 신청 201, 같은 키 재전송은 200 + Idempotent-Replayed: true, 업무 명세 7장)
     @PostMapping
     public ResponseEntity<ApiResponse<ApplicationReceipt>> receive(@Valid @RequestBody CreateApplicationRequest request,
+            @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
             @AuthenticationPrincipal AuthPrincipal actor) {
-        return ResponseEntity.status(HttpStatus.CREATED)
-                .body(ApiResponse.success(applicationService.receive(request, actor), TraceIds.current()));
+        IdempotentReceiver.Result result = idempotentReceiver.receive(request, idempotencyKey, actor);
+        ApiResponse<ApplicationReceipt> body = ApiResponse.success(result.receipt(), TraceIds.current());
+        if (result.replayed()) {
+            return ResponseEntity.ok().header("Idempotent-Replayed", "true").body(body);
+        }
+        return ResponseEntity.status(HttpStatus.CREATED).body(body);
     }
 
     // 신청자 본인 신청 조회
