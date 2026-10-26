@@ -31,6 +31,22 @@ server:
   # FinFlow 포트 8110 (HomeFin 8100, RiskWatch 8120)
   port: ${SERVER_PORT:8110}
 
+app:
+  # HomeFin 서버의 서비스 토큰 서명 키 (HomeFin과 FinFlow만 앎, 32바이트 이상, 기본값 없음)
+  service-token:
+    secret: ${SERVICE_TOKEN_SECRET}
+  operator:
+    # 운영자 토큰 서명 키 (FinFlow만 앎, 32바이트 이상, 기본값 없음)
+    jwt-secret: ${OPERATOR_JWT_SECRET}
+    # 운영자 토큰 유효 기간 (기본 8시간)
+    token-expiration-ms: ${OPERATOR_TOKEN_EXPIRATION_MS:28800000}
+    # 첫 운영자 계정 (서버 시작 때 없으면 만듦, 비우면 만들지 않음)
+    initial-email: ${OPERATOR_EMAIL:}
+    initial-password: ${OPERATOR_PASSWORD:}
+  encryption:
+    # 연소득·DTI 암호화 키 (정확히 32바이트, 기본값 없음)
+    key: ${ENCRYPTION_KEY}
+
 management:
   endpoints:
     web:
