@@ -44,6 +44,9 @@ services:
       OPERATOR_EMAIL: ${OPERATOR_EMAIL:-}
       OPERATOR_PASSWORD: ${OPERATOR_PASSWORD:-}
       OPERATOR_TOKEN_EXPIRATION_MS: ${OPERATOR_TOKEN_EXPIRATION_MS:-28800000}
+      # 배치: 만료 기간(일), 자동 실행(한국 시각 03:00 만료, 03:30 집계)
+      APPLICATION_EXPIRE_DAYS: ${APPLICATION_EXPIRE_DAYS:-30}
+      BATCH_SCHEDULING_ENABLED: ${BATCH_SCHEDULING_ENABLED:-true}
     depends_on:
       mysql:
         condition: service_healthy
