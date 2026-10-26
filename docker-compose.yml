@@ -36,6 +36,14 @@ services:
       DB_URL: jdbc:mysql://mysql:3306/${MYSQL_DATABASE:-finflow}?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
       MYSQL_USER: ${MYSQL_USER:-ffuser}
       MYSQL_PASSWORD: ${MYSQL_PASSWORD:?MYSQL_PASSWORD를 .env에 설정하세요}
+      # 비밀값 (.env 필수, 기본값 없음)
+      SERVICE_TOKEN_SECRET: ${SERVICE_TOKEN_SECRET:?SERVICE_TOKEN_SECRET을 .env에 설정하세요}
+      OPERATOR_JWT_SECRET: ${OPERATOR_JWT_SECRET:?OPERATOR_JWT_SECRET을 .env에 설정하세요}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:?ENCRYPTION_KEY를 .env에 설정하세요}
+      # 첫 운영자 계정 (선택, 비우면 만들지 않음)
+      OPERATOR_EMAIL: ${OPERATOR_EMAIL:-}
+      OPERATOR_PASSWORD: ${OPERATOR_PASSWORD:-}
+      OPERATOR_TOKEN_EXPIRATION_MS: ${OPERATOR_TOKEN_EXPIRATION_MS:-28800000}
     depends_on:
       mysql:
         condition: service_healthy

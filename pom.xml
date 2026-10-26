@@ -20,6 +20,9 @@
 
     <properties>
         <java.version>17</java.version>
+        <jjwt.version>0.12.3</jjwt.version>
+        <!-- 테스트용 MySQL 컨테이너 라이브러리 버전 -->
+        <testcontainers.version>2.0.5</testcontainers.version>
     </properties>
 
     <!--
@@ -38,10 +41,29 @@
             <artifactId>spring-boot-starter-validation</artifactId>
         </dependency>
 
-        <!-- 인증/인가 (뼈대에서는 health 외 모든 주소를 막음) -->
+        <!-- 인증/인가 -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-security</artifactId>
+        </dependency>
+
+        <!-- JWT 생성/검증 (서비스 토큰 확인, 운영자 토큰 발급·확인, HomeFin과 같은 버전) -->
+        <dependency>
+            <groupId>io.jsonwebtoken</groupId>
+            <artifactId>jjwt-api</artifactId>
+            <version>${jjwt.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>io.jsonwebtoken</groupId>
+            <artifactId>jjwt-impl</artifactId>
+            <version>${jjwt.version}</version>
+            <scope>runtime</scope>
+        </dependency>
+        <dependency>
+            <groupId>io.jsonwebtoken</groupId>
+            <artifactId>jjwt-jackson</artifactId>
+            <version>${jjwt.version}</version>
+            <scope>runtime</scope>
         </dependency>
 
         <!-- JPA(Hibernate)와 Spring Data JPA -->
@@ -98,6 +120,18 @@
             <artifactId>h2</artifactId>
             <scope>test</scope>
         </dependency>
+
+        <!-- 테스트에서 실제 MySQL 8.0 컨테이너 사용 (H2로 확인할 수 없는 스키마 검증·MySQL 전용 SQL) -->
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>testcontainers-mysql</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>testcontainers-junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 
     <build>
@@ -113,6 +147,15 @@
                             <artifactId>lombok</artifactId>
                         </exclude>
                     </excludes>
+                </configuration>
+            </plugin>
+
+            <!-- 테스트 JVM 시간대를 운영과 같은 UTC로 -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <configuration>
+                    <argLine>@{argLine} -Duser.timezone=UTC</argLine>
                 </configuration>
             </plugin>
 

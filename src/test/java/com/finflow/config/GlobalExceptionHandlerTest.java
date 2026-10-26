@@ -1,6 +1,7 @@
 package com.finflow.config;
 
 import com.finflow.common.BusinessException;
+import com.finflow.entity.Application;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
@@ -9,6 +10,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -40,6 +42,11 @@ class GlobalExceptionHandlerTest {
         @GetMapping("/test/unexpected")
         void unexpected() {
             throw new IllegalStateException("select * from guarantee_applications where secret_column = 1");
+        }
+
+        @GetMapping("/test/stale")
+        void stale() {
+            throw new ObjectOptimisticLockingFailureException(Application.class, 1L);
         }
 
         @GetMapping("/test/items/{id}")
@@ -115,5 +122,14 @@ class GlobalExceptionHandlerTest {
         mockMvc.perform(post("/test/business"))
                 .andExpect(status().isMethodNotAllowed())
                 .andExpect(jsonPath("$.message").value("Method Not Allowed"));
+    }
+
+    @Test
+    @DisplayName("[TC-ERR-207] 동시 수정으로 버전이 맞지 않음(낙관적 잠금 실패) → 409 \"Application was updated by another request\" (500 아님)")
+    void optimisticLockConflict() throws Exception {
+        mockMvc.perform(get("/test/stale").header("X-Trace-Id", "hfm-stale"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.message").value("Application was updated by another request"))
+                .andExpect(jsonPath("$.traceId").value("hfm-stale"));
     }
 }

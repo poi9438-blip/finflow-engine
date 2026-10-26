@@ -17,12 +17,12 @@
 
 ## 진행 단계
 
-| 단계 | 내용                                                         | 상태      |
-| ---- | ------------------------------------------------------------ | --------- |
-| 1    | 뼈대: 공통 응답·오류 형식, traceId, 보안 기본값, compose, CI | 진행 중   |
-| 2    | 신청 상태 흐름 + 감사 기록, 서비스 토큰·운영자 로그인        | 명세 작성 |
-| 3    | 멱등성 (같은 신청이 두 번 들어와도 한 번만 저장)             |           |
-| 4    | 배치 (오래 대기한 신청 만료, 일별 집계)                      |           |
+| 단계 | 내용                                                         | 상태    |
+| ---- | ------------------------------------------------------------ | ------- |
+| 1    | 뼈대: 공통 응답·오류 형식, traceId, 보안 기본값, compose, CI | 완료    |
+| 2    | 신청 상태 흐름 + 감사 기록, 서비스 토큰·운영자 로그인        | 진행 중 |
+| 3    | 멱등성 (같은 신청이 두 번 들어와도 한 번만 저장)             |         |
+| 4    | 배치 (오래 대기한 신청 만료, 일별 집계)                      |         |
 
 Kafka(Outbox → Kafka 이벤트)는 추후 추가 기능입니다.
 
@@ -45,6 +45,26 @@ curl http://localhost:8110/actuator/health   # {"status":"UP"}
 | ----- | --------------------- |
 | 서버  | http://localhost:8110 |
 | MySQL | 127.0.0.1:3311        |
+
+운영자 로그인과 신청 목록 (`.env`에 `OPERATOR_EMAIL`·`OPERATOR_PASSWORD`를 넣었을 때):
+
+```bash
+curl -s -X POST http://localhost:8110/api/auth/login -H "Content-Type: application/json" \
+  -d '{"email":"<OPERATOR_EMAIL>","password":"<OPERATOR_PASSWORD>"}'        # → data.token
+curl -s http://localhost:8110/api/admin/applications -H "Authorization: Bearer <token>"
+```
+
+신청 접수(`POST /api/applications`)는 HomeFin 서버가 서비스 토큰으로 호출합니다. API 전체는 [업무 명세 6장](docs/spec.md#6-api)에 있습니다.
+
+| API                                                       | 주체    | 내용                          |
+| --------------------------------------------------------- | ------- | ----------------------------- |
+| `POST /api/auth/login`                                    | 누구나  | 운영자 로그인                 |
+| `POST /api/applications`                                  | SERVICE | 신청 접수                     |
+| `GET /api/applications/{id}`                              | SERVICE | 신청자 본인 신청 조회         |
+| `POST /api/applications/{id}/cancel`                      | SERVICE | 신청자 취소                   |
+| `GET /api/admin/applications`                             | ADMIN   | 목록 (상태·상품 필터, 페이지) |
+| `GET /api/admin/applications/{id}`                        | ADMIN   | 상세 + 상태 이력              |
+| `POST /api/admin/applications/{id}/review·approve·reject` | ADMIN   | 심사 시작·승인·거절           |
 
 ### 2. 테스트
 

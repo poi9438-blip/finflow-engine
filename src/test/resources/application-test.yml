@@ -15,3 +15,15 @@ spring:
     hibernate:
       # 운영과 같이 Flyway가 테이블을 만듦
       ddl-auto: none
+
+# 테스트 전용 비밀값 (실제 값 아님)
+app:
+  service-token:
+    secret: FinFlow-Test-Service-Token-Secret-32bytes-or-more
+  operator:
+    jwt-secret: FinFlow-Test-Operator-JWT-Secret-32bytes-or-more
+    token-expiration-ms: 3600000
+    initial-email: operator@test.local
+    initial-password: Operator-Test-Pass!1
+  encryption:
+    key: FinFlow-AES-256-Key-Test-Padded!
