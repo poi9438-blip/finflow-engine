@@ -33,7 +33,7 @@ FinFlow가 **무엇을 하고, 누가 무엇을 할 수 있는지** 정한 문�
   - 토큰의 운영자가 DB에 없으면 401 (HomeFin TC-AUTH-115와 같은 방식)
 - **역할은 섞이지 않습니다.** 서비스 토큰으로 운영자 API를 부르거나, 운영자 토큰으로 신청을 접수하면 403입니다.
 - **운영자 계정:** 비밀번호는 BCrypt로 저장합니다. 서버가 시작될 때 `.env`의 `OPERATOR_EMAIL`·`OPERATOR_PASSWORD`로 첫 계정을 만들고(이미 있으면 그대로, 비우면 만들지 않음), 비밀번호는 기본값이 없습니다.
-- **로그인 시도 제한:** 같은 이메일로 15분 안에 5번 실패하면 그 뒤 15분 동안 429 (HomeFin과 같은 기준).
+- **로그인 시도 제한:** 같은 이메일의 최근 15분 안 실패가 5번 이상이면 맞는 비밀번호여도 429 (HomeFin과 같은 기준). 실패 기록은 이메일 HMAC 값으로만 남기고, 없는 이메일도 비밀번호 확인을 한 번 해서 응답 시간으로 계정이 있는지 알 수 없게 합니다.
 
 ## 3. 신청
 
@@ -57,7 +57,7 @@ FinFlow가 **무엇을 하고, 누가 무엇을 할 수 있는지** 정한 문�
 
 - 형식이 틀리면 400 `필드: 메시지` (HomeFin과 같은 형식, 메시지는 영어).
 - **상품 조건(소득 기준, 주택 가격 상한 등)은 FinFlow가 판정하지 않습니다.** 조건 판정은 HomeFin 추천과 RiskWatch 심사 규칙이 합니다.
-- **같은 신청자가 같은 상품으로 진행 중(접수·심사 중)인 신청이 있으면 409** `Active application already exists`.
+- **같은 신청자가 같은 상품으로 진행 중(접수·심사 중)인 신청이 있으면 409** `Active application already exists`. 같은 신청이 동시에 들어와 둘 다 확인을 통과해도, DB의 unique 제약(`active_key`: 진행 중인 신청만 `신청자:상품` 값을 가짐)이 두 번째 저장을 막습니다.
 
 ### 3.2 신청 번호
 
@@ -88,12 +88,12 @@ FinFlow가 **무엇을 하고, 누가 무엇을 할 수 있는지** 정한 문�
 - **표에 없는 전이는 모두 409** `Invalid status transition: <현재> -> <다음>`. 승인·거절·취소·만료는 끝 상태라 더 바뀌지 않습니다.
 - **예외: 이미 취소된 신청을 다시 취소하면 200**으로 같은 결과를 돌려주고 기록은 남기지 않습니다. HomeFin이 응답을 못 받고 다시 보낸 경우를 위해서입니다. 승인·거절은 사람이 하는 일이라 반복하면 409입니다.
 - **심사 중인 신청은 만료하지 않습니다.** 심사를 시작했으면 운영자가 결론을 내야 합니다.
-- **동시에 두 요청이 상태를 바꾸면** 먼저 저장된 쪽만 반영되고 나중 쪽은 409 `Application was updated by another request` (버전 번호로 확인, 낙관적 잠금).
+- **동시에 두 요청이 상태를 바꾸면** 먼저 저장된 쪽만 반영되고 나중 쪽은 409입니다. 둘 다 같은 상태를 읽었으면 `Application was updated by another request`(버전 번호로 확인, 낙관적 잠금), 나중 쪽이 바뀐 상태를 읽었으면 `Invalid status transition`입니다.
 
 ## 5. 감사 기록
 
 - 상태가 바뀔 때마다 **같은 트랜잭션에서** `application_status_history`에 한 줄을 남깁니다. 상태만 바뀌고 기록이 없거나, 기록만 있고 상태가 안 바뀐 경우가 없어야 합니다.
-- 남기는 값: 이전 상태(접수는 없음), 다음 상태, 주체 종류(`SERVICE`/`ADMIN`/`BATCH`), 주체 id(운영자 id / `homefin-mate` / 배치 이름), 사유·메모, traceId, 시각.
+- 남기는 값: 이전 상태(접수는 없음), 다음 상태, 주체 종류(`SERVICE`/`ADMIN`/`BATCH`), 주체 id(`operator:{운영자 id}` / `homefin-mate` / 배치 이름), 사유·메모, traceId, 시각.
 - 기록은 수정·삭제 API가 없습니다.
 - 거부된 요청(잘못된 전이, 권한 없음)은 상태가 바뀌지 않으므로 기록하지 않고 WARN 로그만 남깁니다.
 
@@ -159,6 +159,8 @@ HomeFin이 응답을 못 받고 같은 신청을 다시 보내도 신청은 하�
 | `applications` 칸 추가       | idempotency_key(unique), request_hash                                                                                                                                                                                                                                                                                                          | 3    |
 | `daily_application_stats`    | stat_date, product_code, received, approved, rejected, cancelled, expired (stat_date+product_code unique)                                                                                                                                                                                                                                      | 4    |
 
+- 상태·상품·주체 종류 같은 enum 칸은 MySQL ENUM이 아니라 VARCHAR로 저장합니다 (상태를 추가할 때 표를 바꾸지 않도록).
+- 진행 중 중복 방지: `applications.active_key`(생성 칼럼, 접수·심사 중일 때만 `신청자:상품`) + unique.
 - 인덱스: `applications(applicant_ref, product_code, status)`(중복 신청 확인), `applications(status, received_at)`(만료 배치·목록), `application_status_history(application_id, created_at)`.
 - 테이블은 Flyway(V1~)가 만들고, Hibernate는 확인만 합니다.
 
@@ -184,10 +186,10 @@ HomeFin이 응답을 못 받고 같은 신청을 다시 보내도 신청은 하�
 
 ## 12. 단계별 범위
 
-| 단계 | 이 문서의 범위                                                                     | 테스트 명세                                                                |
-| ---- | ---------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
-| 1    | 공통 응답·오류, traceId, 보안 기본값 (완료)                                        | [base.md](test-cases/base.md), [api-errors.md](test-cases/api-errors.md)   |
-| 2    | 2장 인증, 3장 신청, 4장 상태, 5장 감사, 6장의 2단계 API, 9장의 2단계 표, 10장      | [application.md](test-cases/application.md), [auth.md](test-cases/auth.md) |
-| 3    | 7장 멱등성                                                                         | 3단계 전에 작성                                                            |
-| 4    | 8장 배치, 6장의 4단계 API                                                          | 4단계 전에 작성                                                            |
-| 이후 | RiskWatch 연동 (심사 시작 때 규칙 엔진 판정과 근거 저장), HomeFin 화면의 신청 버튼 | RiskWatch 단계에서 작성                                                    |
+| 단계 | 이 문서의 범위                                                                       | 테스트 명세                                                                |
+| ---- | ------------------------------------------------------------------------------------ | -------------------------------------------------------------------------- |
+| 1    | 공통 응답·오류, traceId, 보안 기본값 (완료)                                          | [base.md](test-cases/base.md), [api-errors.md](test-cases/api-errors.md)   |
+| 2    | 2장 인증, 3장 신청, 4장 상태, 5장 감사, 6장의 2단계 API, 9장의 2단계 표, 10장 (완료) | [application.md](test-cases/application.md), [auth.md](test-cases/auth.md) |
+| 3    | 7장 멱등성                                                                           | 3단계 전에 작성                                                            |
+| 4    | 8장 배치, 6장의 4단계 API                                                            | 4단계 전에 작성                                                            |
+| 이후 | RiskWatch 연동 (심사 시작 때 규칙 엔진 판정과 근거 저장), HomeFin 화면의 신청 버튼   | RiskWatch 단계에서 작성                                                    |
