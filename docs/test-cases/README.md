@@ -10,6 +10,7 @@
 | [auth.md](auth.md)               | 운영자 로그인, 서비스·운영자 토큰, 역할    | TC-AUTH   |
 | [application.md](application.md) | 신청 접수, 상태 흐름, 감사 기록            | TC-APP    |
 | [idempotency.md](idempotency.md) | 신청 접수 멱등성 (Idempotency-Key)         | TC-IDEM   |
+| [batch.md](batch.md)             | 만료·일별 집계 배치, 배치 API              | TC-BATCH  |
 
 ## ID 규칙
 
