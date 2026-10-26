@@ -21,8 +21,8 @@
 | ---- | ------------------------------------------------------------ | ------- |
 | 1    | 뼈대: 공통 응답·오류 형식, traceId, 보안 기본값, compose, CI | 완료    |
 | 2    | 신청 상태 흐름 + 감사 기록, 서비스 토큰·운영자 로그인        | 완료    |
-| 3    | 멱등성 (같은 신청이 두 번 들어와도 한 번만 저장)             | 진행 중 |
-| 4    | 배치 (오래 대기한 신청 만료, 일별 집계)                      |         |
+| 3    | 멱등성 (같은 신청이 두 번 들어와도 한 번만 저장)             | 완료    |
+| 4    | 배치 (오래 대기한 신청 만료, 일별 집계)                      | 진행 중 |
 
 Kafka(Outbox → Kafka 이벤트)는 추후 추가 기능입니다.
 
@@ -54,17 +54,20 @@ curl -s -X POST http://localhost:8110/api/auth/login -H "Content-Type: applicati
 curl -s http://localhost:8110/api/admin/applications -H "Authorization: Bearer <token>"
 ```
 
-신청 접수(`POST /api/applications`)는 HomeFin 서버가 서비스 토큰으로 호출합니다. API 전체는 [업무 명세 6장](docs/spec.md#6-api)에 있습니다.
+신청 접수(`POST /api/applications`)는 HomeFin 서버가 서비스 토큰과 `Idempotency-Key`로 호출합니다. 만료(매일 03:00)·일별 집계(03:30) 배치는 한국 시각 기준으로 자동 실행됩니다. API 전체는 [업무 명세 6장](docs/spec.md#6-api)에 있습니다.
 
-| API                                                       | 주체    | 내용                          |
-| --------------------------------------------------------- | ------- | ----------------------------- |
-| `POST /api/auth/login`                                    | 누구나  | 운영자 로그인                 |
-| `POST /api/applications`                                  | SERVICE | 신청 접수                     |
-| `GET /api/applications/{id}`                              | SERVICE | 신청자 본인 신청 조회         |
-| `POST /api/applications/{id}/cancel`                      | SERVICE | 신청자 취소                   |
-| `GET /api/admin/applications`                             | ADMIN   | 목록 (상태·상품 필터, 페이지) |
-| `GET /api/admin/applications/{id}`                        | ADMIN   | 상세 + 상태 이력              |
-| `POST /api/admin/applications/{id}/review·approve·reject` | ADMIN   | 심사 시작·승인·거절           |
+| API                                                       | 주체    | 내용                           |
+| --------------------------------------------------------- | ------- | ------------------------------ |
+| `POST /api/auth/login`                                    | 누구나  | 운영자 로그인                  |
+| `POST /api/applications`                                  | SERVICE | 신청 접수                      |
+| `GET /api/applications/{id}`                              | SERVICE | 신청자 본인 신청 조회          |
+| `POST /api/applications/{id}/cancel`                      | SERVICE | 신청자 취소                    |
+| `GET /api/admin/applications`                             | ADMIN   | 목록 (상태·상품 필터, 페이지)  |
+| `GET /api/admin/applications/{id}`                        | ADMIN   | 상세 + 상태 이력               |
+| `POST /api/admin/applications/{id}/review·approve·reject` | ADMIN   | 심사 시작·승인·거절            |
+| `POST /api/admin/batch/expire`                            | ADMIN   | 만료 배치 지금 실행            |
+| `POST /api/admin/batch/daily-stats?date=`                 | ADMIN   | 그날(한국 날짜) 집계 지금 실행 |
+| `GET /api/admin/stats/daily?from=&to=`                    | ADMIN   | 일별 집계 조회 (최대 92일)     |
 
 ### 2. 테스트
 

@@ -19,6 +19,18 @@ spring:
     hikari:
       connection-timeout: 10000
 
+  # Flyway: 공통 마이그레이션 + DB별 마이그레이션(Spring Batch 메타 테이블)
+  flyway:
+    locations: classpath:db/migration,classpath:db/vendor/{vendor}
+
+  batch:
+    job:
+      # 서버 시작 때 배치를 자동 실행하지 않음 (스케줄러·운영자 API가 실행)
+      enabled: false
+    jdbc:
+      # 메타 테이블은 Flyway(V3)가 만듦
+      initialize-schema: never
+
   jpa:
     # 요청 끝까지 DB 커넥션을 잡지 않도록 OSIV 끔 (HomeFin #71에서 확인한 문제)
     open-in-view: false
@@ -43,6 +55,13 @@ app:
     # 첫 운영자 계정 (서버 시작 때 없으면 만듦, 비우면 만들지 않음)
     initial-email: ${OPERATOR_EMAIL:}
     initial-password: ${OPERATOR_PASSWORD:}
+  batch:
+    # 접수 후 이 기간이 지나도록 심사를 시작하지 않은 신청은 만료 (일, 기본 30)
+    expire-days: ${APPLICATION_EXPIRE_DAYS:30}
+    # 자동 실행 (만료 매일 03:00, 집계 03:30, 한국 시각). 테스트는 끔
+    scheduling-enabled: ${BATCH_SCHEDULING_ENABLED:true}
+    # 만료 배치 한 번에 처리하는 건수 (chunk)
+    chunk-size: ${BATCH_CHUNK_SIZE:100}
   encryption:
     # 연소득·DTI 암호화 키 (정확히 32바이트, 기본값 없음)
     key: ${ENCRYPTION_KEY}

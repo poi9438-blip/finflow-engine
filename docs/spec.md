@@ -115,7 +115,7 @@ FinFlow가 **무엇을 하고, 누가 무엇을 할 수 있는지** 정한 문�
 | POST   | `/api/admin/applications/{applicationId}/reject`              | ADMIN   | 거절, 본문 `{reason}` (필수)                                   | 2    |
 | POST   | `/api/admin/batch/expire`                                     | ADMIN   | 만료 배치를 지금 실행 (결과: 만료한 건수)                      | 4    |
 | POST   | `/api/admin/batch/daily-stats?date=`                          | ADMIN   | 그날 집계를 지금 실행 (다시 실행해도 같은 결과)                | 4    |
-| GET    | `/api/admin/stats/daily?from=&to=`                            | ADMIN   | 일별 집계 조회 (최대 92일)                                     | 4    |
+| GET    | `/api/admin/stats/daily?from=&to=`                            | ADMIN   | 일별 집계 조회 (from ≤ to, 최대 92일)                          | 4    |
 
 - **신청자 확인:** HomeFin 서버를 믿더라도, 조회·취소는 `applicantRef`가 신청의 값과 같아야 합니다. 다르면 404로 응답해 다른 사람 신청의 존재 여부를 알려 주지 않습니다.
 - `/actuator/health`만 인증 없이 공개합니다 (1단계와 같음).
@@ -148,7 +148,13 @@ HomeFin이 응답을 못 받고 같은 신청을 다시 보내도 신청은 하�
 - **다시 실행해도 결과가 같아야 합니다.** 만료는 이미 만료된 신청을 건너뛰고, 집계는 같은 날짜 값을 덮어씁니다.
 - 한 건이 실패해도 나머지는 처리하고, 실패 건수와 traceId(`batch-` 접두사)를 로그에 남깁니다.
 - 날짜 기준: 서버 시각은 UTC로 저장하고, "하루"는 한국 날짜(Asia/Seoul)로 나눕니다.
-- 구현 방식(Spring Batch 또는 스케줄러)은 4단계에서 정합니다.
+- **구현: Spring Batch** (4단계에서 결정). 실행 기록·재시작은 Spring Batch 메타 테이블(Flyway V3)이 남깁니다.
+- **만료 배치:** 대상을 id 순서로 이어 읽습니다(페이지 번호로 읽으면 앞 페이지를 처리하는 동안 대상에서 빠진 행 때문에 뒤 페이지가 당겨져 건너뛰는 행이 생김). 처리 직전에 다시 확인해서, 그사이 운영자가 심사를 시작했으면 만료하지 않습니다. 동시 수정으로 실패한 건은 건너뛰고(결과의 건너뛴 건수), 다른 오류는 배치를 실패로 끝냅니다(다시 실행 가능).
+- **기준 시각:** 접수 시각 + 만료 기간 ≤ 배치 실행 시각이면 만료합니다. 감사 기록의 주체는 `BATCH` / `applicationExpireJob`, traceId는 실행마다 `batch-UUID`입니다.
+- **일별 집계:** 접수 건수는 신청의 접수 시각으로, 승인·거절·취소·만료 건수는 그날 생긴 상태 이력으로 셉니다. 상품 3개 모두 한 줄씩(0 포함) 저장하고, 같은 날짜를 다시 실행하면 그 날짜 줄을 지우고 새로 씁니다(한 트랜잭션).
+- **다시 실행:** Spring Batch는 같은 파라미터로 완료된 실행을 다시 하지 않으므로, 실행 시각을 파라미터에 넣어 매번 새로 실행합니다(같은 날짜 집계를 다시 할 때 필요).
+- **설정:** `APPLICATION_EXPIRE_DAYS`(만료 기간, 기본 30), `BATCH_SCHEDULING_ENABLED`(자동 실행, 기본 켜짐), `BATCH_CHUNK_SIZE`(한 번에 처리하는 건수, 기본 100).
+- **서버 한 대 기준입니다.** 서버를 여러 대 띄우면 자동 실행이 겹칠 수 있습니다(분산 잠금은 범위 밖).
 
 ## 9. 데이터 모델
 
@@ -193,5 +199,5 @@ HomeFin이 응답을 못 받고 같은 신청을 다시 보내도 신청은 하�
 | 1    | 공통 응답·오류, traceId, 보안 기본값 (완료)                                          | [base.md](test-cases/base.md), [api-errors.md](test-cases/api-errors.md)   |
 | 2    | 2장 인증, 3장 신청, 4장 상태, 5장 감사, 6장의 2단계 API, 9장의 2단계 표, 10장 (완료) | [application.md](test-cases/application.md), [auth.md](test-cases/auth.md) |
 | 3    | 7장 멱등성                                                                           | [idempotency.md](test-cases/idempotency.md)                                |
-| 4    | 8장 배치, 6장의 4단계 API                                                            | 4단계 전에 작성                                                            |
+| 4    | 8장 배치, 6장의 4단계 API                                                            | [batch.md](test-cases/batch.md)                                            |
 | 이후 | RiskWatch 연동 (심사 시작 때 규칙 엔진 판정과 근거 저장), HomeFin 화면의 신청 버튼   | RiskWatch 단계에서 작성                                                    |

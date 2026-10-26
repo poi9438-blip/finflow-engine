@@ -27,3 +27,9 @@ app:
     initial-password: Operator-Test-Pass!1
   encryption:
     key: FinFlow-AES-256-Key-Test-Padded!
+  batch:
+    expire-days: 30
+    # 테스트는 자동 실행 끔 (테스트가 직접 실행)
+    scheduling-enabled: false
+    # 작게 잡아서 여러 chunk에 걸친 처리도 확인
+    chunk-size: 2

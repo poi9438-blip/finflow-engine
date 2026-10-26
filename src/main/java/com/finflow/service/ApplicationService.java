@@ -92,7 +92,7 @@ public class ApplicationService {
         } catch (DataIntegrityViolationException e) {
             throw new DuplicateSaveException();
         }
-        recordHistory(application, null, actor, null, now);
+        recordHistory(application, null, actorType(actor), actor.actorId(), null, now);
         // 로그에는 금액·소득·DTI를 남기지 않음 (업무 명세 10장)
         log.info("Application received applicationId={} product={}", application.getApplicationId(), productCode);
         return ApplicationReceipt.of(application);
@@ -154,6 +154,18 @@ public class ApplicationService {
         return detail(application);
     }
 
+    // 만료 배치 한 건: 아직 접수 상태이고 접수 시각이 기준 이전이면 EXPIRED (감사 기록 주체는 배치)
+    @Transactional
+    public boolean expireIfDue(Long id, LocalDateTime cutoff, String jobName) {
+        Application application = applicationRepository.findById(id).orElse(null);
+        if (application == null || application.getStatus() != ApplicationStatus.RECEIVED
+                || application.getReceivedAt().isAfter(cutoff)) {
+            return false;
+        }
+        transition(application, ApplicationStatus.EXPIRED, ActorType.BATCH, jobName, null);
+        return true;
+    }
+
     // 운영자 목록 (상태·상품 필터, 최신순, page는 0부터, size는 1~100)
     @Transactional(readOnly = true)
     public List<AdminListItem> list(ApplicationStatus status, ProductCode productCode, int page, int size) {
@@ -174,6 +186,12 @@ public class ApplicationService {
 
     // 상태 전이: 규칙 확인 → 상태 저장(버전 확인) → 이력 저장 (한 트랜잭션)
     private void transition(Application application, ApplicationStatus to, AuthPrincipal actor, String reason) {
+        transition(application, to, actorType(actor), actor.actorId(), reason);
+    }
+
+    // 상태 전이 (주체 종류·id를 직접 받음: 배치는 로그인 주체가 아님)
+    private void transition(Application application, ApplicationStatus to, ActorType actorType, String actorId,
+            String reason) {
         ApplicationStatus from = application.getStatus();
         if (!ApplicationStatus.canTransition(from, to)) {
             log.warn("Rejected status transition applicationId={} {} -> {}", application.getApplicationId(), from,
@@ -183,7 +201,7 @@ public class ApplicationService {
         LocalDateTime now = now();
         application.changeStatus(to, now);
         applicationRepository.saveAndFlush(application);
-        recordHistory(application, from, actor, reason, now);
+        recordHistory(application, from, actorType, actorId, reason, now);
         log.info("Application status changed applicationId={} {} -> {}", application.getApplicationId(), from, to);
     }
 
@@ -192,14 +210,18 @@ public class ApplicationService {
         return LocalDateTime.now().truncatedTo(ChronoUnit.MICROS);
     }
 
-    private void recordHistory(Application application, ApplicationStatus from, AuthPrincipal actor, String reason,
-            LocalDateTime now) {
+    private static ActorType actorType(AuthPrincipal actor) {
+        return actor.role() == Role.ADMIN ? ActorType.ADMIN : ActorType.SERVICE;
+    }
+
+    private void recordHistory(Application application, ApplicationStatus from, ActorType actorType, String actorId,
+            String reason, LocalDateTime now) {
         historyRepository.save(ApplicationStatusHistory.builder()
                 .applicationId(application.getId())
                 .fromStatus(from)
                 .toStatus(application.getStatus())
-                .actorType(actor.role() == Role.ADMIN ? ActorType.ADMIN : ActorType.SERVICE)
-                .actorId(actor.actorId())
+                .actorType(actorType)
+                .actorId(actorId)
                 .reason(reason)
                 .traceId(TraceIds.current())
                 .createdAt(now)

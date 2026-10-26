@@ -1,5 +1,8 @@
 package com.finflow.repository;
 
+import com.finflow.batch.BatchRunner;
+import com.finflow.dto.batch.BatchRunResult;
+import com.finflow.util.EncryptionUtil;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -13,6 +16,8 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.mysql.MySQLContainer;
 
+import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -39,6 +44,10 @@ class MySqlSchemaTest {
 
         @Autowired
         JdbcTemplate jdbc;
+        @Autowired
+        BatchRunner batchRunner;
+        @Autowired
+        EncryptionUtil encryptionUtil;
 
         private long insertApplication(String applicationId, String applicantRef, String status) {
                 jdbc.update("insert into applications (application_id, type, product_code, applicant_ref, requested_amount,"
@@ -56,8 +65,8 @@ class MySqlSchemaTest {
                 List<String> versions = jdbc.queryForList(
                                 "select version from flyway_schema_history where success = 1 order by installed_rank",
                                 String.class);
-                // V2(멱등성 키)까지 순서대로 적용
-                assertThat(versions).containsExactly("1", "2");
+                // V4(일별 집계)까지 순서대로 적용 (V3는 DB별 Spring Batch 메타 테이블)
+                assertThat(versions).containsExactly("1", "2", "3", "4");
 
                 long id = insertApplication("00000000-0000-0000-0000-000000000001", "homefin:1", "RECEIVED");
 
@@ -99,5 +108,31 @@ class MySqlSchemaTest {
                 assertThatThrownBy(() -> jdbc.update(
                                 "update applications set idempotency_key = 'key-mysql-1' where id = ?", second))
                                 .isInstanceOf(DataIntegrityViolationException.class);
+        }
+
+        // 실제 MySQL에서 만료·집계 배치 실행 (Spring Batch 메타 테이블, 집계 SQL)
+        @Test
+        @DisplayName("[TC-BATCH-202] 실제 MySQL 8에서 Flyway V3(Spring Batch 메타)·V4(집계) 위에 만료·집계 배치 실행 → COMPLETED, 만료 반영, 실행 기록이 메타 테이블에 남음")
+        void batchJobsRunOnMySql() {
+                long id = insertApplication("00000000-0000-0000-0000-000000000201", "homefin:201", "RECEIVED");
+                // 만료 배치는 신청을 엔티티로 읽으므로(연소득·DTI 복호화) 진짜 암호문으로
+                jdbc.update("update applications set received_at = now(6) - interval 40 day,"
+                                + " household_annual_income = ?, dti = ? where id = ?",
+                                encryptionUtil.encrypt("60000000"), encryptionUtil.encrypt("0.3041"), id);
+
+                BatchRunResult expire = batchRunner.runExpire();
+                BatchRunResult stats = batchRunner.runDailyStats(LocalDate.now(ZoneId.of("Asia/Seoul")));
+
+                assertThat(expire.status()).isEqualTo("COMPLETED");
+                assertThat(expire.processed()).isGreaterThanOrEqualTo(1);
+                assertThat(jdbc.queryForObject("select status from applications where id = ?", String.class, id))
+                                .isEqualTo("EXPIRED");
+                assertThat(stats.status()).isEqualTo("COMPLETED");
+                assertThat(jdbc.queryForObject("select count(*) from daily_application_stats", Long.class))
+                                .isEqualTo(3);
+                assertThat(jdbc.queryForList("select j.JOB_NAME from BATCH_JOB_EXECUTION e join BATCH_JOB_INSTANCE j"
+                                + " on j.JOB_INSTANCE_ID = e.JOB_INSTANCE_ID where e.STATUS = 'COMPLETED'",
+                                String.class))
+                                .contains("applicationExpireJob", "dailyStatsJob");
         }
 }
