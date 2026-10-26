@@ -1,0 +1,51 @@
+services:
+  # FinFlow 전용 MySQL (HomeFin DB와 따로 둠)
+  mysql:
+    image: mysql:8.0
+    container_name: finflow-mysql
+    environment:
+      # 비밀번호는 .env에서만 가져옴 (기본값 없음, 없으면 compose가 시작하지 않음)
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?MYSQL_ROOT_PASSWORD를 .env에 설정하세요}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-finflow}
+      MYSQL_USER: ${MYSQL_USER:-ffuser}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?MYSQL_PASSWORD를 .env에 설정하세요}
+    # 호스트 127.0.0.1:3311 => 컨테이너 3306 (이 PC에서만 접속, HomeFin은 3310)
+    ports:
+      - "127.0.0.1:3311:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    # MySQL 준비 상태 확인
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # FinFlow 서버 (8110)
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime
+    container_name: finflow-backend
+    # 직접 호출은 이 PC에서만 (HomeFin과 연결하는 네트워크는 세 서비스 연결 단계에서 추가)
+    ports:
+      - "127.0.0.1:8110:8110"
+    environment:
+      SERVER_PORT: 8110
+      DB_URL: jdbc:mysql://mysql:3306/${MYSQL_DATABASE:-finflow}?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+      MYSQL_USER: ${MYSQL_USER:-ffuser}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?MYSQL_PASSWORD를 .env에 설정하세요}
+    depends_on:
+      mysql:
+        condition: service_healthy
+    # 서버 준비 상태 확인 (/actuator/health가 UP이면 healthy)
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8110/actuator/health | grep -q UP"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+volumes:
+  mysql_data:

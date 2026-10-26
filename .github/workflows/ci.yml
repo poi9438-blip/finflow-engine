@@ -1,0 +1,50 @@
+# CI: 테스트 + 테스트 명세 대조 (배포 없음)
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# 같은 브랜치에 새 커밋이 오면 이전 실행은 취소
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: maven
+      # 테스트 + JaCoCo 리포트 (Maven Wrapper로 정해진 Maven 3.9.9 사용)
+      - run: ./mvnw -B test
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: backend-test-results
+          path: |
+            target/surefire-reports/
+            target/site/jacoco/
+
+  # 테스트가 끝난 뒤(실패해도) 결과를 명세와 대조. 명세·코드 불일치, 실패, 미실행이 있으면 실패
+  test-case-status:
+    needs: [backend]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: backend-test-results
+          path: target
+      - name: Compare test cases with results
+        shell: bash
+        run: python3 scripts/tc_status.py --markdown --strict | tee -a "$GITHUB_STEP_SUMMARY"
