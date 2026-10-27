@@ -65,8 +65,9 @@ class MySqlSchemaTest {
                 List<String> versions = jdbc.queryForList(
                                 "select version from flyway_schema_history where success = 1 order by installed_rank",
                                 String.class);
-                // V4(일별 집계)까지 순서대로 적용 (V3는 DB별 Spring Batch 메타 테이블)
-                assertThat(versions).containsExactly("1", "2", "3", "4");
+                // V5(RiskWatch 판정 칸)까지 순서대로 적용 (V3는 DB별 Spring Batch 메타 테이블)
+                // 아래 insert는 V5 칸을 넣지 않음 = 5단계 전에 접수된 신청 (V5 칸이 비어 있어도 저장됨)
+                assertThat(versions).containsExactly("1", "2", "3", "4", "5");
 
                 long id = insertApplication("00000000-0000-0000-0000-000000000001", "homefin:1", "RECEIVED");
 

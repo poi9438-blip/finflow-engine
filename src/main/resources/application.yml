@@ -31,6 +31,11 @@ spring:
       # 메타 테이블은 Flyway(V3)가 만듦
       initialize-schema: never
 
+  jackson:
+    deserialization:
+      # 정수 칸(금액·기간·자녀 수)에 소수가 오면 버리지 않고 거부 (#5: 1.5를 1로 접수하던 문제)
+      accept-float-as-int: false
+
   jpa:
     # 요청 끝까지 DB 커넥션을 잡지 않도록 OSIV 끔 (HomeFin #71에서 확인한 문제)
     open-in-view: false
@@ -62,6 +67,15 @@ app:
     scheduling-enabled: ${BATCH_SCHEDULING_ENABLED:true}
     # 만료 배치 한 번에 처리하는 건수 (chunk)
     chunk-size: ${BATCH_CHUNK_SIZE:100}
+  riskwatch:
+    # 심사 시작 때 판정을 받는 RiskWatch 주소 (Docker 안에서는 서비스 이름으로 덮어씀)
+    base-url: ${RISKWATCH_BASE_URL:http://localhost:8120}
+    # RiskWatch에 보내는 서비스 토큰 키 (RiskWatch의 FINFLOW_TOKEN_SECRET과 같은 값, FinFlow의 다른 키와 다르게, 기본값 없음)
+    token-secret: ${RISKWATCH_TOKEN_SECRET}
+    # 연결 2초, 응답 3초, 연결 실패·5xx는 0.2초 뒤 한 번 더
+    connect-timeout-ms: ${RISKWATCH_CONNECT_TIMEOUT_MS:2000}
+    read-timeout-ms: ${RISKWATCH_READ_TIMEOUT_MS:3000}
+    retry-backoff-ms: ${RISKWATCH_RETRY_BACKOFF_MS:200}
   encryption:
     # 연소득·DTI 암호화 키 (정확히 32바이트, 기본값 없음)
     key: ${ENCRYPTION_KEY}

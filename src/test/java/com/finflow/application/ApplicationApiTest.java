@@ -427,6 +427,44 @@ class ApplicationApiTest {
                                 + " and status in ('RECEIVED', 'REVIEWING')", Long.class, ref)).isEqualTo(1);
         }
 
+        private long applications(String applicantRef) {
+                return jdbc.queryForObject("select count(*) from applications where applicant_ref = ?", Long.class,
+                                applicantRef);
+        }
+
+        @Test
+        @DisplayName("[TC-APP-115] 접수: 주택 보유·맞벌이가 없으면 400 \"필드: 메시지\", 주택 보유에 없는 값(TWO)도 400, 저장 안 됨")
+        void receive_riskInputsRequired() throws Exception {
+                String ref = applicantRef();
+                for (String field : List.of("houseOwnership", "dualIncome")) {
+                        Map<String, Object> body = applicationBody(ref);
+                        body.remove(field);
+                        MvcResult result = api.receive(body).andExpect(status().isBadRequest()).andReturn();
+                        assertThat(api.read(result).get("message").asText()).startsWith(field + ": ")
+                                        .endsWith("is required");
+                }
+                Map<String, Object> body = applicationBody(ref);
+                body.put("houseOwnership", "TWO");
+                api.receive(body).andExpect(status().isBadRequest())
+                                .andExpect(jsonPath("$.message").value(
+                                                "houseOwnership: House ownership must be one of NONE, RENT, OWN"));
+                assertThat(applications(ref)).isZero();
+        }
+
+        @Test
+        @DisplayName("[TC-APP-116] 접수: 정수 칸(금액·기간·주택 가격·연소득·자녀 수)에 소수 → 400 Malformed request body, 저장 안 됨 (#5)")
+        void receive_decimalInIntegerField_badRequest() throws Exception {
+                String ref = applicantRef();
+                for (String field : List.of("requestedAmount", "termMonths", "housePrice", "householdAnnualIncome",
+                                "childCount")) {
+                        Map<String, Object> body = applicationBody(ref);
+                        body.put(field, new java.math.BigDecimal(((Number) body.get(field)).longValue() + ".5"));
+                        api.receive(body).andExpect(status().isBadRequest())
+                                        .andExpect(jsonPath("$.message").value("Malformed request body"));
+                }
+                assertThat(applications(ref)).isZero();
+        }
+
         // 두 요청을 최대한 같은 순간에 시작해서 결과(상태 코드)를 모음
         @SafeVarargs
         private List<Integer> runTogether(Callable<Integer>... tasks) throws Exception {

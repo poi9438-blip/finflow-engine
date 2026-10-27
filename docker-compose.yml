@@ -31,6 +31,9 @@ services:
     # 직접 호출은 이 PC에서만 (HomeFin과 연결하는 네트워크는 세 서비스 연결 단계에서 추가)
     ports:
       - "127.0.0.1:8110:8110"
+    # Linux Docker에서도 host.docker.internal로 이 PC에 닿게 (Windows·Mac은 기본으로 됨)
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     environment:
       SERVER_PORT: 8110
       DB_URL: jdbc:mysql://mysql:3306/${MYSQL_DATABASE:-finflow}?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
@@ -40,6 +43,9 @@ services:
       SERVICE_TOKEN_SECRET: ${SERVICE_TOKEN_SECRET:?SERVICE_TOKEN_SECRET을 .env에 설정하세요}
       OPERATOR_JWT_SECRET: ${OPERATOR_JWT_SECRET:?OPERATOR_JWT_SECRET을 .env에 설정하세요}
       ENCRYPTION_KEY: ${ENCRYPTION_KEY:?ENCRYPTION_KEY를 .env에 설정하세요}
+      RISKWATCH_TOKEN_SECRET: ${RISKWATCH_TOKEN_SECRET:?RISKWATCH_TOKEN_SECRET을 .env에 설정하세요}
+      # RiskWatch 주소 (기본: 이 PC에서 따로 띄운 RiskWatch의 8120 포트)
+      RISKWATCH_BASE_URL: ${RISKWATCH_BASE_URL:-http://host.docker.internal:8120}
       # 첫 운영자 계정 (선택, 비우면 만들지 않음)
       OPERATOR_EMAIL: ${OPERATOR_EMAIL:-}
       OPERATOR_PASSWORD: ${OPERATOR_PASSWORD:-}

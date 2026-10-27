@@ -5,6 +5,7 @@ import com.finflow.common.TraceIds;
 import com.finflow.domain.ActorType;
 import com.finflow.domain.ApplicationStatus;
 import com.finflow.domain.ApplicationType;
+import com.finflow.domain.HouseOwnership;
 import com.finflow.domain.ProductCode;
 import com.finflow.dto.application.AdminDetail;
 import com.finflow.dto.application.AdminListItem;
@@ -13,6 +14,8 @@ import com.finflow.dto.application.ApplicationReceipt;
 import com.finflow.dto.application.CreateApplicationRequest;
 import com.finflow.entity.Application;
 import com.finflow.entity.ApplicationStatusHistory;
+import com.finflow.integration.RiskEvaluationRequest;
+import com.finflow.integration.RiskResult;
 import com.finflow.repository.ApplicationRepository;
 import com.finflow.repository.ApplicationStatusHistoryRepository;
 import com.finflow.security.AuthPrincipal;
@@ -76,6 +79,8 @@ public class ApplicationService {
                 .newlywed(request.newlywed())
                 .newbornWithin2Years(request.newbornWithin2Years())
                 .childCount(request.childCount())
+                .houseOwnership(HouseOwnership.valueOf(request.houseOwnership()))
+                .dualIncome(request.dualIncome())
                 .region(request.region())
                 .simulationRef(request.simulationRef())
                 .status(ApplicationStatus.RECEIVED)
@@ -127,10 +132,21 @@ public class ApplicationService {
         return ApplicantView.of(application);
     }
 
-    // 심사 시작 (접수 → 심사 중)
-    @Transactional
-    public AdminDetail startReview(String applicationId, AuthPrincipal actor) {
+    // 심사 시작 ①: 시작할 수 있는 상태인지 확인하고 RiskWatch에 보낼 값 (판정 입력이 없는 예전 신청이면 비어 있음)
+    // 시작할 수 없으면 RiskWatch를 부르기 전에 409
+    @Transactional(readOnly = true)
+    public Optional<RiskEvaluationRequest> prepareReview(String applicationId) {
         Application application = find(applicationId);
+        checkTransition(application, ApplicationStatus.REVIEWING);
+        return application.hasRiskInput() ? Optional.of(RiskEvaluationRequest.of(application)) : Optional.empty();
+    }
+
+    // 심사 시작 ③ (접수 → 심사 중): 다시 읽어서 전이 + 판정 저장 (RiskWatch를 기다리는 사이 바뀌었으면 409, 판정 저장 안 함)
+    @Transactional
+    public AdminDetail startReview(String applicationId, RiskResult risk, AuthPrincipal actor) {
+        Application application = find(applicationId);
+        // 판정을 먼저 넣고 상태와 한 번에 저장 (버전이 한 번만 오름, approve의 메모와 같은 이유)
+        application.recordRisk(risk);
         transition(application, ApplicationStatus.REVIEWING, actor, null);
         return detail(application);
     }
@@ -193,16 +209,22 @@ public class ApplicationService {
     private void transition(Application application, ApplicationStatus to, ActorType actorType, String actorId,
             String reason) {
         ApplicationStatus from = application.getStatus();
-        if (!ApplicationStatus.canTransition(from, to)) {
-            log.warn("Rejected status transition applicationId={} {} -> {}", application.getApplicationId(), from,
-                    to);
-            throw new BusinessException(HttpStatus.CONFLICT, "Invalid status transition: " + from + " -> " + to);
-        }
+        checkTransition(application, to);
         LocalDateTime now = now();
         application.changeStatus(to, now);
         applicationRepository.saveAndFlush(application);
         recordHistory(application, from, actorType, actorId, reason, now);
         log.info("Application status changed applicationId={} {} -> {}", application.getApplicationId(), from, to);
+    }
+
+    // 전이 규칙 확인 (표에 없는 전이면 409)
+    private static void checkTransition(Application application, ApplicationStatus to) {
+        ApplicationStatus from = application.getStatus();
+        if (!ApplicationStatus.canTransition(from, to)) {
+            log.warn("Rejected status transition applicationId={} {} -> {}", application.getApplicationId(), from,
+                    to);
+            throw new BusinessException(HttpStatus.CONFLICT, "Invalid status transition: " + from + " -> " + to);
+        }
     }
 
     // 현재 시각 (DB와 같은 마이크로초 정밀도)

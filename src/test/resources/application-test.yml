@@ -25,6 +25,13 @@ app:
     token-expiration-ms: 3600000
     initial-email: operator@test.local
     initial-password: Operator-Test-Pass!1
+  riskwatch:
+    # 기본은 닫힌 포트 (이 PC에서 실제 RiskWatch가 떠 있어도 부르지 않게). 판정 테스트는 가짜 RiskWatch 주소로 바꿈
+    base-url: http://127.0.0.1:9
+    token-secret: FinFlow-Test-RiskWatch-Token-Secret-32bytes
+    connect-timeout-ms: 500
+    read-timeout-ms: 500
+    retry-backoff-ms: 0
   encryption:
     key: FinFlow-AES-256-Key-Test-Padded!
   batch:

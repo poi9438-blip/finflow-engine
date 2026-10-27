@@ -78,6 +78,8 @@ public final class ApiTestSupport {
         body.put("newlywed", false);
         body.put("newbornWithin2Years", false);
         body.put("childCount", 1);
+        body.put("houseOwnership", "NONE");
+        body.put("dualIncome", false);
         body.put("region", "부산");
         body.put("simulationRef", 42);
         return body;
