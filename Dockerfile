@@ -20,3 +20,7 @@ COPY --from=build --chown=app:app /app/target/*.jar app.jar
 USER app
 EXPOSE 8110
 ENTRYPOINT ["java", "-jar", "app.jar"]
+
+# 3단계: OTel Java 에이전트 포함 이미지 (HomeFin 저장소 observability/docker-compose.observability.full.yml에서 사용)
+FROM runtime AS otel
+ADD --chown=app:app --checksum=sha256:5f9d1f10056ed2b246fbb19543519b8066cda23d6aff19022dbdb84402d6c3ab     https://repo1.maven.org/maven2/io/opentelemetry/javaagent/opentelemetry-javaagent/2.33.0/opentelemetry-javaagent-2.33.0.jar     /app/opentelemetry-javaagent.jar
