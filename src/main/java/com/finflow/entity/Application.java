@@ -2,7 +2,10 @@ package com.finflow.entity;
 
 import com.finflow.domain.ApplicationStatus;
 import com.finflow.domain.ApplicationType;
+import com.finflow.domain.HouseOwnership;
 import com.finflow.domain.ProductCode;
+import com.finflow.domain.RiskStatus;
+import com.finflow.integration.RiskResult;
 import com.finflow.util.EncryptedDecimalConverter;
 import jakarta.persistence.Column;
 import jakarta.persistence.Convert;
@@ -85,6 +88,15 @@ public class Application {
     @Column(name = "child_count", nullable = false)
     private Integer childCount;
 
+    // 5단계 판정 입력 (그 전에 접수된 신청은 null)
+    @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.VARCHAR)
+    @Column(name = "house_ownership")
+    private HouseOwnership houseOwnership;
+
+    @Column(name = "dual_income")
+    private Boolean dualIncome;
+
     private String region;
 
     @Column(name = "simulation_ref")
@@ -125,6 +137,41 @@ public class Application {
     // 요청 값의 SHA-256 (같은 키로 다른 요청이 왔는지 확인)
     @Column(name = "request_hash", updatable = false)
     private String requestHash;
+
+    // 심사 시작 때 받은 RiskWatch 판정 (업무 명세 13장, 심사 전이면 모두 null)
+    @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.VARCHAR)
+    @Column(name = "risk_status")
+    private RiskStatus riskStatus;
+
+    @Column(name = "risk_evaluation_id")
+    private String riskEvaluationId;
+
+    @Column(name = "risk_verdict")
+    private String riskVerdict;
+
+    @Column(name = "risk_criteria_version")
+    private String riskCriteriaVersion;
+
+    @Column(name = "risk_evaluated_at")
+    private LocalDateTime riskEvaluatedAt;
+
+    @Column(name = "risk_failure")
+    private String riskFailure;
+
+    // 판정 입력이 모두 있는지 (5단계 전 신청은 없음)
+    public boolean hasRiskInput() {
+        return houseOwnership != null && dualIncome != null;
+    }
+
+    public void recordRisk(RiskResult risk) {
+        this.riskStatus = risk.status();
+        this.riskEvaluationId = risk.evaluationId();
+        this.riskVerdict = risk.verdict();
+        this.riskCriteriaVersion = risk.criteriaVersion();
+        this.riskEvaluatedAt = risk.evaluatedAt();
+        this.riskFailure = risk.failure();
+    }
 
     // 상태 변경 (전이 규칙 확인은 ApplicationService가 함). 승인·거절이면 결정 시각을 남김
     public void changeStatus(ApplicationStatus to, LocalDateTime now) {

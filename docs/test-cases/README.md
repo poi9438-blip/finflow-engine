@@ -11,6 +11,7 @@
 | [application.md](application.md) | 신청 접수, 상태 흐름, 감사 기록            | TC-APP    |
 | [idempotency.md](idempotency.md) | 신청 접수 멱등성 (Idempotency-Key)         | TC-IDEM   |
 | [batch.md](batch.md)             | 만료·일별 집계 배치, 배치 API              | TC-BATCH  |
+| [review.md](review.md)           | 심사 시작 때 RiskWatch 판정 저장           | TC-RISK   |
 
 ## ID 규칙
 

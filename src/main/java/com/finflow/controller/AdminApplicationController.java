@@ -10,6 +10,7 @@ import com.finflow.dto.application.ApproveRequest;
 import com.finflow.dto.application.RejectRequest;
 import com.finflow.security.AuthPrincipal;
 import com.finflow.service.ApplicationService;
+import com.finflow.service.ReviewStartService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -31,6 +32,7 @@ import java.util.List;
 public class AdminApplicationController {
 
     private final ApplicationService applicationService;
+    private final ReviewStartService reviewStartService;
 
     // 목록 (?status=&productCode=&page=0&size=20, size 최대 100)
     @GetMapping
@@ -50,11 +52,11 @@ public class AdminApplicationController {
                 TraceIds.current()));
     }
 
-    // 심사 시작
+    // 심사 시작 (RiskWatch 판정을 받아 함께 저장, RiskWatch가 응답하지 않아도 시작)
     @PostMapping("/{applicationId}/review")
     public ResponseEntity<ApiResponse<AdminDetail>> review(@PathVariable String applicationId,
             @AuthenticationPrincipal AuthPrincipal actor) {
-        return ResponseEntity.ok(ApiResponse.success(applicationService.startReview(applicationId, actor),
+        return ResponseEntity.ok(ApiResponse.success(reviewStartService.startReview(applicationId, actor),
                 TraceIds.current()));
     }
 

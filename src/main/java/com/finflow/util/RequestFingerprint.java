@@ -30,6 +30,8 @@ public final class RequestFingerprint {
                 field("newlywed", r.newlywed()),
                 field("newbornWithin2Years", r.newbornWithin2Years()),
                 field("childCount", r.childCount()),
+                field("houseOwnership", r.houseOwnership()),
+                field("dualIncome", r.dualIncome()),
                 field("region", r.region()),
                 field("simulationRef", r.simulationRef()))
                 .collect(Collectors.joining("\n"));

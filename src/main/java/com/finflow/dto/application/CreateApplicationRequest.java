@@ -36,6 +36,10 @@ public record CreateApplicationRequest(
 
                 @NotNull(message = "Child count is required") @Min(value = 0, message = "Child count must be 0 or more") @Max(value = 20, message = "Child count must be at most 20") Integer childCount,
 
+                // 5단계 추가: RiskWatch 판정 입력
+                @NotBlank(message = "House ownership is required") @Pattern(regexp = "NONE|RENT|OWN", message = "House ownership must be one of NONE, RENT, OWN") String houseOwnership,
+                @NotNull(message = "Dual income is required") Boolean dualIncome,
+
                 @Size(max = 20, message = "Region must be at most 20 characters") String region,
 
                 @Positive(message = "Simulation ref must be positive") Long simulationRef) {

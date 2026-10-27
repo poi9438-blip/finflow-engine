@@ -107,7 +107,8 @@ class IdempotencyApiTest {
         String key = key();
         api.receive(applicationBody(ref), key).andExpect(status().isCreated());
 
-        String reordered = "{ \"simulationRef\" : 42, \"region\":\"부산\", \"childCount\":1,"
+        String reordered = "{ \"simulationRef\" : 42, \"region\":\"부산\", \"dualIncome\" : false,"
+                + " \"houseOwnership\":\"NONE\", \"childCount\":1,"
                 + "  \"newbornWithin2Years\":false,\"newlywed\":false,\"firstHome\":true, \"dti\":0.3041,"
                 + " \"householdAnnualIncome\":60000000, \"housePrice\":500000000, \"termMonths\":360,"
                 + " \"requestedAmount\":300000000, \"applicantRef\":\"" + ref + "\", \"productCode\":\"BOGEUMJARI\" }";
