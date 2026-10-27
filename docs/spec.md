@@ -39,23 +39,26 @@ FinFlow가 **무엇을 하고, 누가 무엇을 할 수 있는지** 정한 문�
 
 ### 3.1 입력 항목 (`POST /api/applications`)
 
-| 항목                    | 필수   | 규칙                                             | 비고                               |
-| ----------------------- | ------ | ------------------------------------------------ | ---------------------------------- |
-| `productCode`           | 예     | `DIDIMDOL` / `NEWBORN_DIDIMDOL` / `BOGEUMJARI`   | 종류(`type`)는 지금은 항상 `LOAN`  |
-| `applicantRef`          | 예     | `homefin:` + 숫자 (HomeFin 사용자 id), 64자 이하 | 이메일·이름은 받지 않음            |
-| `requestedAmount`       | 예     | 원 단위 정수, 1원 이상 10억 원 이하              |                                    |
-| `termMonths`            | 예     | 12 이상 600 이하                                 | HomeFin 대출 계산과 같은 상한      |
-| `housePrice`            | 예     | 원 단위 정수, 1원 이상                           |                                    |
-| `householdAnnualIncome` | 예     | 원 단위 정수, 0 이상                             | 암호화 저장                        |
-| `dti`                   | 예     | 0 이상 9.9999 이하, 소수 넷째 자리               | HomeFin 계산 결과, 암호화 저장     |
-| `firstHome`             | 예     | true / false                                     |                                    |
-| `newlywed`              | 예     | true / false                                     |                                    |
-| `newbornWithin2Years`   | 예     | true / false                                     |                                    |
-| `childCount`            | 예     | 0 이상 20 이하                                   |                                    |
-| `region`                | 아니요 | 20자 이하                                        |                                    |
-| `simulationRef`         | 아니요 | HomeFin 계산 기록 id (양의 정수)                 | 어떤 계산에서 나온 신청인지 추적용 |
+| 항목                    | 필수   | 규칙                                                      | 비고                               |
+| ----------------------- | ------ | --------------------------------------------------------- | ---------------------------------- |
+| `productCode`           | 예     | `DIDIMDOL` / `NEWBORN_DIDIMDOL` / `BOGEUMJARI`            | 종류(`type`)는 지금은 항상 `LOAN`  |
+| `applicantRef`          | 예     | `homefin:` + 숫자 (HomeFin 사용자 id), 64자 이하          | 이메일·이름은 받지 않음            |
+| `requestedAmount`       | 예     | 원 단위 정수, 1원 이상 10억 원 이하                       |                                    |
+| `termMonths`            | 예     | 12 이상 600 이하                                          | HomeFin 대출 계산과 같은 상한      |
+| `housePrice`            | 예     | 원 단위 정수, 1원 이상                                    |                                    |
+| `householdAnnualIncome` | 예     | 원 단위 정수, 0 이상                                      | 암호화 저장                        |
+| `dti`                   | 예     | 0 이상 9.9999 이하, 소수 넷째 자리                        | HomeFin 계산 결과, 암호화 저장     |
+| `firstHome`             | 예     | true / false                                              |                                    |
+| `newlywed`              | 예     | true / false                                              |                                    |
+| `newbornWithin2Years`   | 예     | true / false                                              |                                    |
+| `childCount`            | 예     | 0 이상 20 이하                                            |                                    |
+| `houseOwnership`        | 예     | `NONE`(무주택) / `RENT`(무주택·전월세) / `OWN`(주택 보유) | 5단계 추가 (RiskWatch 판정 입력)   |
+| `dualIncome`            | 예     | true / false                                              | 5단계 추가 (신생아 특례 소득 기준) |
+| `region`                | 아니요 | 20자 이하                                                 |                                    |
+| `simulationRef`         | 아니요 | HomeFin 계산 기록 id (양의 정수)                          | 어떤 계산에서 나온 신청인지 추적용 |
 
 - 형식이 틀리면 400 `필드: 메시지` (HomeFin과 같은 형식, 메시지는 영어).
+- 정수 칸(금액·기간·주택 가격·연소득·자녀 수)에 소수가 오면 400 `Malformed request body`입니다. 소수를 잘라 접수하지 않습니다(#5).
 - 시각은 DB와 같은 마이크로초까지 씁니다 (접수 응답의 `receivedAt`이 저장된 값·조회 응답과 같음).
 - **상품 조건(소득 기준, 주택 가격 상한 등)은 FinFlow가 판정하지 않습니다.** 조건 판정은 HomeFin 추천과 RiskWatch 심사 규칙이 합니다.
 - **같은 신청자가 같은 상품으로 진행 중(접수·심사 중)인 신청이 있으면 409** `Active application already exists`. 같은 신청이 동시에 들어와 둘 다 확인을 통과해도, DB의 unique 제약(`active_key`: 진행 중인 신청만 `신청자:상품` 값을 가짐)이 두 번째 저장을 막습니다.
@@ -125,7 +128,7 @@ FinFlow가 **무엇을 하고, 누가 무엇을 할 수 있는지** 정한 문�
 HomeFin이 응답을 못 받고 같은 신청을 다시 보내도 신청은 하나만 생겨야 합니다.
 
 - `POST /api/applications`에 **`Idempotency-Key` 헤더 필수** (8~64자, 영문·숫자·`-`, UUID 권장). 없거나 형식이 틀리면 400.
-- FinFlow는 키와 함께 **요청 값의 해시(SHA-256)**를 저장합니다. 본문 문자열이 아니라 검증한 값(3.1의 13개 항목)으로 만들어서, JSON 키 순서·공백·숫자 표기(DTI를 숫자 `0.3041`로 보내든 문자열 `"0.3041"`로 보내든)가 달라도 값이 같으면 같은 요청입니다. 소수 다섯째 자리 이상으로 쓴 DTI(`0.30410`)는 3.1의 입력 규칙에서 400입니다.
+- FinFlow는 키와 함께 **요청 값의 해시(SHA-256)**를 저장합니다. 본문 문자열이 아니라 검증한 값(3.1의 15개 항목, 5단계에서 주택 보유·맞벌이 추가)으로 만들어서, JSON 키 순서·공백·숫자 표기(DTI를 숫자 `0.3041`로 보내든 문자열 `"0.3041"`로 보내든)가 달라도 값이 같으면 같은 요청입니다. 소수 다섯째 자리 이상으로 쓴 DTI(`0.30410`)는 3.1의 입력 규칙에서 400입니다.
 - **키를 먼저 확인합니다.** 재전송은 3.1의 진행 중 중복 규칙(409)보다 우선합니다. 그래야 응답을 못 받은 HomeFin이 다시 보냈을 때 409가 아니라 처음 결과를 받습니다.
 
 | 상황                     | 응답                                                                                                                                                        |
@@ -136,6 +139,7 @@ HomeFin이 응답을 못 받고 같은 신청을 다시 보내도 신청은 하�
 | 같은 키로 동시에 두 요청 | 하나만 저장 (키에 unique 제약), 나머지는 저장이 실패한 뒤 키로 다시 조회해서 200 재전송                                                                     |
 
 - 키는 신청과 함께 계속 보관합니다 (만료 없음). 2단계에서 키 없이 저장된 신청은 키 칸이 비어 있습니다.
+- 5단계 전에 저장된 해시는 13개 항목으로 만든 값입니다. 그 키로 다시 보내는 요청은 새 필수 항목이 없어 먼저 400이 되므로, 해시를 다시 계산하지 않습니다.
 - 멱등성(같은 요청의 재전송)과 3.1의 중복 신청 규칙(다른 요청이지만 같은 신청자·상품)은 다른 규칙입니다. 둘 다 확인합니다.
 
 ## 8. 배치 (4단계)
@@ -166,6 +170,7 @@ HomeFin이 응답을 못 받고 같은 신청을 다시 보내도 신청은 하�
 | `operator_login_failures`    | id, email_hash(HMAC), created_at                                                                                                                                                                                                                                                                                                               | 2    |
 | `applications` 칸 추가       | idempotency_key(unique), request_hash                                                                                                                                                                                                                                                                                                          | 3    |
 | `daily_application_stats`    | stat_date, product_code, received, approved, rejected, cancelled, expired (stat_date+product_code unique)                                                                                                                                                                                                                                      | 4    |
+| `applications` 칸 추가       | house_ownership, dual_income (5단계 전 신청은 NULL), risk_status, risk_evaluation_id, risk_verdict, risk_criteria_version, risk_evaluated_at, risk_failure                                                                                                                                                                                     | 5    |
 
 - 상태·상품·주체 종류 같은 enum 칸은 MySQL ENUM이 아니라 VARCHAR로 저장합니다 (상태를 추가할 때 표를 바꾸지 않도록).
 - 진행 중 중복 방지: `applications.active_key`(생성 칼럼, 접수·심사 중일 때만 `신청자:상품`) + unique.
@@ -178,26 +183,50 @@ HomeFin이 응답을 못 받고 같은 신청을 다시 보내도 신청은 하�
 - 연소득과 DTI는 AES-256-GCM으로 암호화해 저장합니다 (키 `ENCRYPTION_KEY`, 기본값 없음). 목록 API에는 넣지 않고 운영자 상세에서만 보여 줍니다.
 - 로그에는 금액·소득·DTI를 남기지 않고 applicationId와 상태만 남깁니다.
 - 로그인 실패 기록의 이메일은 HMAC 값으로 저장합니다 (HomeFin #33과 같은 방식).
-- 비밀값(`SERVICE_TOKEN_SECRET`, `OPERATOR_JWT_SECRET`, `ENCRYPTION_KEY`, `OPERATOR_PASSWORD`, DB 비밀번호)은 모두 기본값 없이 `.env`에서만 받습니다.
+- 비밀값(`SERVICE_TOKEN_SECRET`, `OPERATOR_JWT_SECRET`, `RISKWATCH_TOKEN_SECRET`, `ENCRYPTION_KEY`, `OPERATOR_PASSWORD`, DB 비밀번호)은 모두 기본값 없이 `.env`에서만 받습니다.
 
 ## 11. 오류 응답
 
-| 상태 | 언제                                                                                   |
-| ---- | -------------------------------------------------------------------------------------- |
-| 400  | 입력 형식, 페이지 범위, `Idempotency-Key` 없음·형식 오류                               |
-| 401  | 토큰 없음·만료·서명 오류, 서비스 토큰의 `iss`/`aud` 불일치, 삭제된 운영자, 로그인 실패 |
-| 403  | 역할이 맞지 않음 (서비스 ↔ 운영자)                                                     |
-| 404  | 신청이 없음, 또는 `applicantRef`가 다름                                                |
-| 409  | 잘못된 상태 전이, 진행 중인 같은 신청, 멱등성 키 재사용, 동시 수정                     |
-| 429  | 운영자 로그인 시도 제한                                                                |
-| 500  | 예상 못 한 오류 (일반 메시지만, 원인은 서버 로그)                                      |
+| 상태 | 언제                                                                                                                      |
+| ---- | ------------------------------------------------------------------------------------------------------------------------- |
+| 400  | 입력 형식, 페이지 범위, `Idempotency-Key` 없음·형식 오류                                                                  |
+| 401  | 토큰 없음·만료·서명 오류, 서비스 토큰의 `iss`/`aud` 불일치, 삭제된 운영자, 로그인 실패                                    |
+| 403  | 역할이 맞지 않음 (서비스 ↔ 운영자)                                                                                        |
+| 404  | 신청이 없음, 또는 `applicantRef`가 다름                                                                                   |
+| 409  | 잘못된 상태 전이, 진행 중인 같은 신청, 멱등성 키 재사용, 동시 수정 (RiskWatch 판정을 기다리는 사이 신청이 바뀐 경우 포함) |
+| 429  | 운영자 로그인 시도 제한                                                                                                   |
+| 500  | 예상 못 한 오류 (일반 메시지만, 원인은 서버 로그)                                                                         |
 
 ## 12. 단계별 범위
 
-| 단계 | 이 문서의 범위                                                                       | 테스트 명세                                                                |
-| ---- | ------------------------------------------------------------------------------------ | -------------------------------------------------------------------------- |
-| 1    | 공통 응답·오류, traceId, 보안 기본값 (완료)                                          | [base.md](test-cases/base.md), [api-errors.md](test-cases/api-errors.md)   |
-| 2    | 2장 인증, 3장 신청, 4장 상태, 5장 감사, 6장의 2단계 API, 9장의 2단계 표, 10장 (완료) | [application.md](test-cases/application.md), [auth.md](test-cases/auth.md) |
-| 3    | 7장 멱등성                                                                           | [idempotency.md](test-cases/idempotency.md)                                |
-| 4    | 8장 배치, 6장의 4단계 API                                                            | [batch.md](test-cases/batch.md)                                            |
-| 이후 | RiskWatch 연동 (심사 시작 때 규칙 엔진 판정과 근거 저장), HomeFin 화면의 신청 버튼   | RiskWatch 단계에서 작성                                                    |
+| 단계 | 이 문서의 범위                                                                       | 테스트 명세                                                                                   |
+| ---- | ------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------- |
+| 1    | 공통 응답·오류, traceId, 보안 기본값 (완료)                                          | [base.md](test-cases/base.md), [api-errors.md](test-cases/api-errors.md)                      |
+| 2    | 2장 인증, 3장 신청, 4장 상태, 5장 감사, 6장의 2단계 API, 9장의 2단계 표, 10장 (완료) | [application.md](test-cases/application.md), [auth.md](test-cases/auth.md)                    |
+| 3    | 7장 멱등성 (완료)                                                                    | [idempotency.md](test-cases/idempotency.md)                                                   |
+| 4    | 8장 배치, 6장의 4단계 API (완료)                                                     | [batch.md](test-cases/batch.md)                                                               |
+| 5    | 13장 RiskWatch 판정, 3.1 입력 추가(주택 보유·맞벌이)                                 | [review.md](test-cases/review.md), [application.md](test-cases/application.md) TC-APP-115·116 |
+| 이후 | HomeFin 화면의 신청 버튼 (세 서비스 연결 단계)                                       | 연결 단계에서 작성                                                                            |
+
+## 13. RiskWatch 심사 판정 (5단계)
+
+운영자가 심사를 시작하면(`POST /api/admin/applications/{applicationId}/review`) FinFlow가 RiskWatch `POST /api/evaluations`에 신청 값을 보내 판정을 받고, 평가 번호·판정·기준 버전·시각을 신청에 저장합니다. 운영자 상세 응답의 `risk`에 보입니다.
+
+| 순서 | 하는 일                                                                                                         | 트랜잭션  |
+| ---- | --------------------------------------------------------------------------------------------------------------- | --------- |
+| ①    | 신청을 읽어 심사를 시작할 수 있는 상태인지 확인 (아니면 409, RiskWatch를 부르지 않음)                           | 읽기 전용 |
+| ②    | RiskWatch 호출 (응답을 기다리는 동안 DB 연결을 잡지 않음, HomeFin S2)                                           | 없음      |
+| ③    | 신청을 다시 읽어 상태 전이 + 판정 저장 + 감사 기록. 그사이 신청이 바뀌었으면(취소 등) 409, 판정은 저장하지 않음 | 쓰기      |
+
+| `risk.status`   | 언제                                                | 저장하는 값                                                                             |
+| --------------- | --------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| `EVALUATED`     | RiskWatch가 판정을 돌려줌                           | `evaluationId`, `verdict`(ELIGIBLE·REVIEW·INELIGIBLE), `criteriaVersion`, `evaluatedAt` |
+| `UNAVAILABLE`   | 연결 실패, 시간 초과, 오류 응답                     | `failure`: 짧은 이유(`connection`, `timeout`, `HTTP 500` 등). 응답 본문은 저장하지 않음 |
+| `INPUT_MISSING` | 5단계 전에 접수되어 주택 보유·맞벌이 칸이 비어 있음 | 없음 (RiskWatch를 부르지 않음)                                                          |
+
+- **RiskWatch가 응답하지 않아도 심사는 시작합니다.** 판정은 운영자가 참고하는 값이고, 승인·거절은 운영자가 정합니다(판정으로 자동 거절하지 않음).
+- **연결:** 연결 2초, 응답 3초. 연결 실패·5xx는 0.2초 뒤 한 번 더 보냅니다. 시간 초과는 다시 보내지 않습니다(RiskWatch가 이미 처리 중일 수 있어 평가 기록이 둘 생김). 4xx는 다시 보내도 같아서 보내지 않습니다.
+- **서킷 브레이커는 두지 않습니다.** HomeFin은 사용자 요청마다 RiskWatch를 불러 장애가 이어지면 요청이 쌓이지만, FinFlow는 운영자가 한 건씩 누를 때만 부르고 실패해도 심사는 시작되기 때문입니다.
+- **서비스 토큰:** `iss=finflow`, `aud=riskwatch`, 유효 기간 1분, 비밀키 `RISKWATCH_TOKEN_SECRET`(RiskWatch의 `FINFLOW_TOKEN_SECRET`과 같은 값). FinFlow의 다른 비밀키(`SERVICE_TOKEN_SECRET`, `OPERATOR_JWT_SECRET`)와 같거나 32바이트보다 짧으면 서버가 시작하지 않습니다.
+- **보내는 값:** 3.1의 판정 입력 전체 + `sourceRef`=신청 번호, `X-Trace-Id`=심사 시작 요청의 traceId. 같은 traceId로 FinFlow 감사 기록과 RiskWatch 평가 기록을 이어서 찾을 수 있습니다.
+- 판정을 다시 받기(재평가)는 범위 밖입니다. 심사 시작 때 한 번만 부릅니다.
