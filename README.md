@@ -13,18 +13,19 @@
 ```
 
 - **신청 접수:** HomeFin 서버가 서비스 간 토큰으로 호출합니다. 사용자 브라우저는 FinFlow를 직접 부르지 않습니다.
-- **traceId:** HomeFin이 보낸 `X-Trace-Id`를 그대로 씁니다. 운영자가 직접 부르는 등 헤더가 없으면 `ff-UUID`를 만듭니다.
+- **traceId:** HomeFin이 보낸 `X-Trace-Id`를 그대로 씁니다. 운영자가 직접 부르는 등 헤더가 없으면 `ff-UUID`를 만듭니다. 관측 이미지로 띄우면 요청 span에도 `hfm.trace_id`로 붙습니다.
 - **심사 판정:** 운영자가 심사를 시작하면 RiskWatch 판정(평가 번호·판정·기준 버전)을 받아 신청에 저장합니다. RiskWatch가 응답하지 않아도 심사는 시작하고 "평가 불가"로 남깁니다. RiskWatch 토큰 키는 `RISKWATCH_TOKEN_SECRET`(RiskWatch의 `FINFLOW_TOKEN_SECRET`과 같은 값)입니다.
 
 ## 진행 단계
 
-| 단계 | 내용                                                         | 상태 |
-| ---- | ------------------------------------------------------------ | ---- |
-| 1    | 뼈대: 공통 응답·오류 형식, traceId, 보안 기본값, compose, CI | 완료 |
-| 2    | 신청 상태 흐름 + 감사 기록, 서비스 토큰·운영자 로그인        | 완료 |
-| 3    | 멱등성 (같은 신청이 두 번 들어와도 한 번만 저장)             | 완료 |
-| 4    | 배치 (오래 대기한 신청 만료, 일별 집계)                      | 완료 |
-| 5    | 심사 시작 때 RiskWatch 판정 저장 (주택 보유·맞벌이 입력 추가) | 완료 |
+| 단계 | 내용                                                                 | 상태 |
+| ---- | -------------------------------------------------------------------- | ---- |
+| 1    | 뼈대: 공통 응답·오류 형식, traceId, 보안 기본값, compose, CI         | 완료 |
+| 2    | 신청 상태 흐름 + 감사 기록, 서비스 토큰·운영자 로그인                | 완료 |
+| 3    | 멱등성 (같은 신청이 두 번 들어와도 한 번만 저장)                     | 완료 |
+| 4    | 배치 (오래 대기한 신청 만료, 일별 집계)                              | 완료 |
+| 5    | 심사 시작 때 RiskWatch 판정 저장 (주택 보유·맞벌이 입력 추가)        | 완료 |
+| 6    | 관측: 요청 span에 업무 traceId(`hfm.trace_id`), OTel 에이전트 이미지 | 완료 |
 
 Kafka(Outbox → Kafka 이벤트)는 추후 추가 기능입니다.
 
@@ -77,6 +78,18 @@ curl -s http://localhost:8110/api/admin/applications -H "Authorization: Bearer <
 ./mvnw test                   # Windows: mvnw.cmd test
 python scripts/tc_status.py   # 테스트 명세와 결과 대조
 ```
+
+### 3. 관측 (선택)
+
+기본 이미지에는 관측 도구가 없습니다. Dockerfile의 `otel` 빌드 단계에 OpenTelemetry Java 에이전트(2.33.0, 체크섬 확인)가 들어 있고, HomeFin 저장소의 관측 compose가 이 단계를 씁니다.
+
+```bash
+# homefin-mate 폴더에서 (세 저장소를 나란히 받아 둔 상태)
+docker compose -f docker-compose.yml -f full/docker-compose.full.yml -f observability/docker-compose.observability.yml -f observability/docker-compose.observability.full.yml up -d --build
+```
+
+- Grafana(http://localhost:3000) → Tempo에서 `{span.hfm.trace_id="…"}`로 찾으면 FinFlow span이 HomeFin·RiskWatch span과 한 추적으로 보입니다. 속성 이름은 세 서비스가 같습니다.
+- Loki에서 `{service_name="finflow"} | traceId="…"`로 같은 번호의 로그를 찾습니다.
 
 ## 문서
 
