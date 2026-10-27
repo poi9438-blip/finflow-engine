@@ -13,6 +13,9 @@ public final class TraceIds {
     public static final String HEADER = "X-Trace-Id";
     public static final String MDC_KEY = "traceId";
 
+    // OTel 요청 span 속성 이름 (HomeFin·RiskWatch와 같음, Tempo에서 세 서비스를 속성 하나로 검색)
+    public static final String SPAN_ATTRIBUTE = "hfm.trace_id";
+
     // FinFlow가 직접 만든 번호의 접두사
     public static final String PREFIX = "ff-";
 

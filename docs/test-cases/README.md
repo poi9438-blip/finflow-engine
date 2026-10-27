@@ -3,15 +3,16 @@
 기능별로 "무엇을, 왜, 어떤 입력으로, 무엇을 기대하는지"를 적은 문서입니다. 기준은 [업무 명세](../spec.md)입니다.
 공통 기준은 [테스트 기준](../TESTING.md), 원본과 달라진 점과 결함 목록은 [알려진 문제](../known-issues.md)에 있습니다.
 
-| 파일                             | 영역                                       | ID 접두사 |
-| -------------------------------- | ------------------------------------------ | --------- |
-| [base.md](base.md)               | 뼈대: 보안 기본값, traceId, actuator, 시각 | TC-BASE   |
-| [api-errors.md](api-errors.md)   | 공통 응답·오류 형식                        | TC-ERR    |
-| [auth.md](auth.md)               | 운영자 로그인, 서비스·운영자 토큰, 역할    | TC-AUTH   |
-| [application.md](application.md) | 신청 접수, 상태 흐름, 감사 기록            | TC-APP    |
-| [idempotency.md](idempotency.md) | 신청 접수 멱등성 (Idempotency-Key)         | TC-IDEM   |
-| [batch.md](batch.md)             | 만료·일별 집계 배치, 배치 API              | TC-BATCH  |
-| [review.md](review.md)           | 심사 시작 때 RiskWatch 판정 저장           | TC-RISK   |
+| 파일                                 | 영역                                                   | ID 접두사 |
+| ------------------------------------ | ------------------------------------------------------ | --------- |
+| [base.md](base.md)                   | 뼈대: 보안 기본값, traceId, actuator, 시각             | TC-BASE   |
+| [api-errors.md](api-errors.md)       | 공통 응답·오류 형식                                    | TC-ERR    |
+| [auth.md](auth.md)                   | 운영자 로그인, 서비스·운영자 토큰, 역할                | TC-AUTH   |
+| [application.md](application.md)     | 신청 접수, 상태 흐름, 감사 기록                        | TC-APP    |
+| [idempotency.md](idempotency.md)     | 신청 접수 멱등성 (Idempotency-Key)                     | TC-IDEM   |
+| [batch.md](batch.md)                 | 만료·일별 집계 배치, 배치 API                          | TC-BATCH  |
+| [review.md](review.md)               | 심사 시작 때 RiskWatch 판정 저장                       | TC-RISK   |
+| [observability.md](observability.md) | 관측: 요청 span의 `hfm.trace_id`, OTel 에이전트 이미지 | TC-OBS    |
 
 ## ID 규칙
 
