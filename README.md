@@ -26,6 +26,7 @@
 | 4    | 배치 (오래 대기한 신청 만료, 일별 집계)                              | 완료 |
 | 5    | 심사 시작 때 RiskWatch 판정 저장 (주택 보유·맞벌이 입력 추가)        | 완료 |
 | 6    | 관측: 요청 span에 업무 traceId(`hfm.trace_id`), OTel 에이전트 이미지 | 완료 |
+| 7    | 업무 지표: 신청 상태 변화(접수 포함), 심사 시작 때 RiskWatch 결과    | 완료 |
 
 Kafka(Outbox → Kafka 이벤트)는 추후 추가 기능입니다.
 
@@ -90,6 +91,7 @@ docker compose -f docker-compose.yml -f full/docker-compose.full.yml -f observab
 
 - Grafana(http://localhost:3000) → Tempo에서 `{span.hfm.trace_id="…"}`로 찾으면 FinFlow span이 HomeFin·RiskWatch span과 한 추적으로 보입니다. 속성 이름은 세 서비스가 같습니다.
 - Loki에서 `{service_name="finflow"} | traceId="…"`로 같은 번호의 로그를 찾습니다.
+- 업무 지표: `finflow_application_status_changes_total{product_code, to_status}`(커밋된 상태 이력만), `finflow_riskwatch_evaluations_total{status}`. HomeFin 대시보드 "FinSight 서비스"와 알림 "RiskWatch 평가 불가 (FinFlow 심사 시작)"이 씁니다.
 
 ## 문서
 
