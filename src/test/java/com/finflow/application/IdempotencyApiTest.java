@@ -3,6 +3,7 @@ package com.finflow.application;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.finflow.domain.ProductCode;
+import com.finflow.entity.Application;
 import com.finflow.repository.ApplicationRepository;
 import com.finflow.support.ApiTestSupport;
 import org.junit.jupiter.api.BeforeEach;
@@ -21,6 +22,7 @@ import org.springframework.test.web.servlet.MvcResult;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutorService;
@@ -37,6 +39,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doReturn;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -223,6 +226,26 @@ class IdempotencyApiTest {
         assertThat(results).extracting(r -> r.getResponse().getStatus()).containsExactlyInAnyOrder(201, 200);
         assertThat(results).extracting(r -> api.read(r).at("/data/applicationId").asText()).containsOnly(
                 api.read(results.get(0)).at("/data/applicationId").asText());
+        assertThat(applications(ref)).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("[TC-IDEM-108] 같은 키 재시도가 키 확인을 지난 직후 첫 요청이 커밋됨 → 409가 아니라 200 재전송(처음 신청), 새 신청 없음 (#6)")
+    void retryPassesKeyCheckBeforeFirstCommits_replays() throws Exception {
+        String ref = applicantRef();
+        String key = key();
+        String applicationId = api.read(api.receive(applicationBody(ref), key).andExpect(status().isCreated())
+                .andReturn()).at("/data/applicationId").asText();
+
+        // 재시도의 첫 키 확인 때는 첫 요청이 아직 커밋 전이었던 것처럼 못 찾음, 그다음부터는 저장된 신청
+        Optional<Application> saved = applicationRepository.findByIdempotencyKey(key);
+        assertThat(saved).isPresent();
+        doReturn(Optional.empty()).doReturn(saved).when(applicationRepository).findByIdempotencyKey(key);
+
+        api.receive(applicationBody(ref), key)
+                .andExpect(status().isOk())
+                .andExpect(header().string("Idempotent-Replayed", "true"))
+                .andExpect(jsonPath("$.data.applicationId").value(applicationId));
         assertThat(applications(ref)).isEqualTo(1);
     }
 }

@@ -51,6 +51,12 @@ public class IdempotentReceiver {
             // 동시에 들어온 요청이 먼저 저장됨: 같은 키면 재전송, 아니면 진행 중 중복
             return replayIfKnown(idempotencyKey, requestHash)
                     .orElseThrow(() -> new BusinessException(HttpStatus.CONFLICT, ApplicationService.ACTIVE_EXISTS));
+        } catch (BusinessException e) {
+            // 키 확인 직후 같은 키의 첫 요청이 커밋되면 진행 중 확인에 걸림: 같은 키면 재전송 (#6)
+            if (e.getStatus() == HttpStatus.CONFLICT && ApplicationService.ACTIVE_EXISTS.equals(e.getMessage())) {
+                return replayIfKnown(idempotencyKey, requestHash).orElseThrow(() -> e);
+            }
+            throw e;
         }
     }
 
