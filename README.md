@@ -4,6 +4,16 @@
 
 직접 만든 FinSight 구성의 FinFlow(거래·정산 엔진)를 처음부터 다시 설계한 저장소입니다. 원본과 달라진 점은 [docs/known-issues.md](docs/known-issues.md)에 있습니다.
 
+## 함께 쓰는 저장소
+
+세 저장소를 같은 폴더에 나란히 받으면 HomeFin Mate에서 세 서비스를 함께 띄울 수 있습니다 ([HomeFin 실행 5번](https://github.com/poi9438-blip/homefin-mate#5-세-서비스-함께-실행-선택)).
+
+| 저장소                                                               | 역할                                                                  | 포트             |
+| -------------------------------------------------------------------- | --------------------------------------------------------------------- | ---------------- |
+| [homefin-mate](https://github.com/poi9438-blip/homefin-mate)         | 사용자 화면·상담(대출 계산, 정책 추천, 통합 분석, 신청), 관측 compose | 8100 (화면 3100) |
+| [finflow-engine](https://github.com/poi9438-blip/finflow-engine)     | 대출 신청 접수·상태 관리·배치                                         | 8110             |
+| [riskwatch-system](https://github.com/poi9438-blip/riskwatch-system) | 심사 규칙 엔진 (판정·근거·기준 버전)                                  | 8120             |
+
 ## 서비스 구성에서의 위치
 
 ```
