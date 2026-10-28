@@ -16,6 +16,7 @@ import com.finflow.entity.Application;
 import com.finflow.entity.ApplicationStatusHistory;
 import com.finflow.integration.RiskEvaluationRequest;
 import com.finflow.integration.RiskResult;
+import com.finflow.metrics.ApplicationMetrics;
 import com.finflow.repository.ApplicationRepository;
 import com.finflow.repository.ApplicationStatusHistoryRepository;
 import com.finflow.security.AuthPrincipal;
@@ -53,6 +54,7 @@ public class ApplicationService {
 
     private final ApplicationRepository applicationRepository;
     private final ApplicationStatusHistoryRepository historyRepository;
+    private final ApplicationMetrics metrics;
 
     // 신청 접수: 진행 중인 같은 신청자·상품 신청이 있으면 409, 신청과 접수 이력을 한 트랜잭션으로 저장
     // (DB 제약에 막히면 DuplicateSaveException)
@@ -248,6 +250,8 @@ public class ApplicationService {
                 .traceId(TraceIds.current())
                 .createdAt(now)
                 .build());
+        // 업무 지표: 접수·상태 변화 (커밋된 뒤에만 셈)
+        metrics.statusChanged(application.getProductCode(), application.getStatus());
     }
 
     private Application find(String applicationId) {
